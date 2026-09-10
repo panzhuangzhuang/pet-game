@@ -104,6 +104,12 @@
     this.selectedSeed = null;
     // 池塘：鱼/虾/乌龟（初始 100g，每年涨 100g）
     this.pond = [];
+    // 肥料（铲屎获得，1 坨加速植物 1 天）与仓库（农产品/粮）
+    this.fertilizer = 0;
+    this.store = {
+      crops: { orchid: 0, corn: 0, peach: 0, peanut: 0, watermelon: 0, banana: 0 },
+      food: 0
+    };
 
     this.setup = {
       names: { cat: '咪咪', dog: '旺财', pig: '哼哼', cow: '哞哞', sheep: '咩咩', chick: '叽叽' },
@@ -167,7 +173,9 @@
       litterDirt: this.litterDirt,
       yard: this.yard,
       seeds: this.seeds,
-      pond: this.pond
+      pond: this.pond,
+      fertilizer: this.fertilizer,
+      store: this.store
     };
     this.P.setStorage(this.saveKey, save);
   };
@@ -269,6 +277,18 @@
       this.pond = (save.pond && Array.isArray(save.pond)) ? save.pond.map(function (p) {
         return p && p.species ? { species: p.species, createdAt: p.createdAt || 0 } : null;
       }).filter(function (p) { return p !== null; }) : [];
+      // 肥料与仓库（旧存档无 → 0）
+      this.fertilizer = save.fertilizer != null ? Math.max(0, save.fertilizer) : 0;
+      this.store = {
+        crops: { orchid: 0, corn: 0, peach: 0, peanut: 0, watermelon: 0, banana: 0 },
+        food: 0
+      };
+      if (save.store) {
+        if (save.store.crops) Pets.PLANT_ORDER.forEach(function (k) {
+          if (save.store.crops[k] != null) self.store.crops[k] = save.store.crops[k];
+        });
+        if (save.store.food != null) self.store.food = save.store.food;
+      }
       // 离线时间流逝（游戏时间 = 真实时间；碗也会随离线时间消耗）
       var delta = Math.max(0, now - (save.lastSavedAt || now));
       var br = this.bowlRate();
@@ -310,7 +330,7 @@
   Game.prototype.start = function () {
     var self = this;
     if (this._running) return;
-    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES, plantInfo: Pets.PLANTS, plantGrowth: Pets.plantGrowth, plantLabel: Pets.plantLabel, pondInfo: Pets.POND, pondWeight: Pets.pondWeight, pondScale: Pets.pondScale, pondOrder: Pets.POND_ORDER });
+    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES, plantInfo: Pets.PLANTS, plantGrowth: Pets.plantGrowth, plantLabel: Pets.plantLabel, plantOrder: Pets.PLANT_ORDER, pondInfo: Pets.POND, pondWeight: Pets.pondWeight, pondScale: Pets.pondScale, pondOrder: Pets.POND_ORDER });
     if (!this._bound) {
       this._bound = true;
       this.P.onHide(function () { self.save(); });
@@ -1195,6 +1215,7 @@
     if (this.screen === 'rooms') { this.roomsHit(x, y); return; }
     if (this.screen === 'yard') { this.yardHit(x, y); return; }
     if (this.screen === 'pond') { this.pondHit(x, y); return; }
+    if (this.screen === 'store') { this.storeHit(x, y); return; }
 
     // 主界面：底部按钮
     var btns = LAYOUT.buttons;
@@ -1255,12 +1276,19 @@
       this.scoopLitter();
       return;
     }
-    // 碗：点击添粮 / 添水
+    // 碗：点击添粮 / 添水（添粮优先消耗仓库粮）
     var bowlKind = this.bowlAt(x, y);
     if (bowlKind) {
       this.bowls[bowlKind] = 100;
+      if (bowlKind === 'food' && this.store.food > 0) {
+        this.store.food--;
+        this.toastMsg('用了 1 份仓库粮，粮碗装满啦！');
+      } else if (bowlKind === 'food') {
+        this.toastMsg('粮碗装满啦！（仓库没粮了，收获植物加工一些吧）');
+      } else {
+        this.toastMsg('水碗装满啦！');
+      }
       this.save();
-      this.toastMsg(bowlKind === 'food' ? '粮碗装满啦！' : '水碗装满啦！');
       return;
     }
     // 墓碑
@@ -1443,6 +1471,11 @@
       this.screen = 'pond';
       return;
     }
+    // 左侧粮仓小屋 → 进入仓库（加工粮 / 存粮）
+    if (x >= 25 && x <= 185 && y >= 720 && y <= 820) {
+      this.screen = 'store';
+      return;
+    }
     // 种子栏（先于地块，底部）
     for (var i = 0; i < L.seeds.length; i++) {
       var s = L.seeds[i];
@@ -1463,14 +1496,24 @@
       var now = Date.now();
       if (pl) {
         if (Pets.plantMature(pl, now)) {
-          // 收获：获得 1 颗同种种子
+          // 收获：种子 +1、农产品 +2（可去仓库加工成粮）
           this.seeds[pl.type] = (this.seeds[pl.type] || 0) + 1;
+          this.store.crops[pl.type] = (this.store.crops[pl.type] || 0) + 2;
           this.yard[j] = null;
           this.save();
-          this.toastMsg('收获了一颗' + Pets.plantLabel(pl.type) + '种子！');
+          this.toastMsg('收获了' + Pets.plantLabel(pl.type) + '！种子+1，农产品×2（可去仓库加工成粮）');
         } else {
           var left = Pets.plantRemainDays(pl, now);
-          this.toastMsg(Pets.plantLabel(pl.type) + '还要 ' + left + ' 天成熟');
+          if (this.fertilizer > 0) {
+            // 施肥：消耗 1 坨肥料，加速 1 天
+            this.fertilizer--;
+            pl.plantedAt -= 86400000;
+            var left2 = Pets.plantRemainDays(pl, now);
+            this.save();
+            this.toastMsg('💩 施肥成功！' + Pets.plantLabel(pl.type) + ' 加速 1 天，还剩 ' + left2 + ' 天');
+          } else {
+            this.toastMsg(Pets.plantLabel(pl.type) + ' 还要 ' + left + ' 天成熟（铲屎得肥料可加速）');
+          }
         }
         return;
       }
@@ -1510,6 +1553,35 @@
     }, this);
   };
 
+  // 仓库点击：返回院子 / 加工成粮 / 添粮到碗
+  Game.prototype.storeHit = function (x, y) {
+    if (x >= 20 && x <= 150 && y >= 40 && y <= 102) {
+      this.screen = 'yard';
+      return;
+    }
+    // 全部加工成粮
+    if (x >= 25 && x <= 365 && y >= 1050 && y <= 1140) {
+      var total = 0, self = this;
+      Pets.PLANT_ORDER.forEach(function (k) { total += self.store.crops[k] || 0; });
+      if (total <= 0) { this.toastMsg('没有农产品，先去院子收获植物吧'); return; }
+      Pets.PLANT_ORDER.forEach(function (k) { self.store.crops[k] = 0; });
+      this.store.food += total;
+      this.save();
+      this.toastMsg('加工完成！' + total + ' 份农产品变成了 ' + total + ' 份粮');
+      return;
+    }
+    // 粮碗添粮
+    if (x >= 385 && x <= 725 && y >= 1050 && y <= 1140) {
+      if (this.store.food <= 0) { this.toastMsg('仓库没粮了，先收获植物加工一些吧'); return; }
+      if (this.bowls.food >= 100) { this.toastMsg('粮碗还是满的，让宠物先吃掉一些吧'); return; }
+      this.store.food--;
+      this.bowls.food = 100;
+      this.save();
+      this.toastMsg('用 1 份粮把粮碗添满啦');
+      return;
+    }
+  };
+
   Game.prototype.tombAt = function (x, y) {
     for (var i = 0; i < this.pets.length; i++) {
       var pet = this.pets[i];
@@ -1546,15 +1618,17 @@
     return dx * dx + dy * dy < r * r;
   };
 
-  // 铲屎：把猫砂盆清理干净
+  // 铲屎：清理干净并收集肥料（屎尿可加速植物生长）
   Game.prototype.scoopLitter = function () {
     if (this.litterDirt <= 0) {
       this.toastMsg('猫砂盆很干净，暂时不用铲');
       return;
     }
+    var gain = Math.max(1, Math.floor(this.litterDirt / 20));
     this.litterDirt = 0;
+    this.fertilizer += gain;
     this.save();
-    this.toastMsg('铲屎完成！猫砂盆干净啦');
+    this.toastMsg('铲屎完成！收获 ' + gain + ' 坨肥料（可在院子里施肥，1 坨加速 1 天）');
   };
 
   // ---------------- 后台：时间快进 ----------------
@@ -1917,6 +1991,8 @@
       Render.drawYard(ctx, this);
     } else if (this.screen === 'pond') {
       Render.drawPond(ctx, this);
+    } else if (this.screen === 'store') {
+      Render.drawStore(ctx, this);
     } else {
       this.renderMain(ctx);
     }
