@@ -98,6 +98,8 @@
     this.yard = [null, null, null, null, null, null];
     this.seeds = { orchid: 1, corn: 1, peach: 1, peanut: 1, watermelon: 1, banana: 1 };
     this.selectedSeed = null;
+    // 池塘：鱼/虾/乌龟（初始 100g，每年涨 100g）
+    this.pond = [];
 
     this.setup = {
       names: { cat: '咪咪', dog: '旺财', pig: '哼哼', cow: '哞哞', sheep: '咩咩', chick: '叽叽' },
@@ -160,7 +162,8 @@
       bowls: this.bowls,
       litterDirt: this.litterDirt,
       yard: this.yard,
-      seeds: this.seeds
+      seeds: this.seeds,
+      pond: this.pond
     };
     this.P.setStorage(this.saveKey, save);
   };
@@ -258,6 +261,10 @@
         Pets.PLANT_ORDER.forEach(function (k) { if (save.seeds[k] != null) self.seeds[k] = save.seeds[k]; });
       }
       this.selectedSeed = null;
+      // 池塘（旧存档无 → 空池塘）
+      this.pond = (save.pond && Array.isArray(save.pond)) ? save.pond.map(function (p) {
+        return p && p.species ? { species: p.species, createdAt: p.createdAt || 0 } : null;
+      }).filter(function (p) { return p !== null; }) : [];
       // 离线时间流逝（游戏时间 = 真实时间；碗也会随离线时间消耗）
       var delta = Math.max(0, now - (save.lastSavedAt || now));
       var br = this.bowlRate();
@@ -299,7 +306,7 @@
   Game.prototype.start = function () {
     var self = this;
     if (this._running) return;
-    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES, plantInfo: Pets.PLANTS, plantGrowth: Pets.plantGrowth, plantLabel: Pets.plantLabel });
+    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES, plantInfo: Pets.PLANTS, plantGrowth: Pets.plantGrowth, plantLabel: Pets.plantLabel, pondInfo: Pets.POND, pondWeight: Pets.pondWeight, pondScale: Pets.pondScale, pondOrder: Pets.POND_ORDER });
     if (!this._bound) {
       this._bound = true;
       this.P.onHide(function () { self.save(); });
@@ -1155,6 +1162,7 @@
     if (this.screen === 'addpet') { this.addpetHit(x, y); return; }
     if (this.screen === 'rooms') { this.roomsHit(x, y); return; }
     if (this.screen === 'yard') { this.yardHit(x, y); return; }
+    if (this.screen === 'pond') { this.pondHit(x, y); return; }
 
     // 主界面：底部按钮
     var btns = LAYOUT.buttons;
@@ -1367,11 +1375,16 @@
     };
   };
 
-  // 院子里点击：返回 / 选种子 / 播种 / 收获
+  // 院子里点击：返回 / 池塘 / 选种子 / 播种 / 收获
   Game.prototype.yardHit = function (x, y) {
     var L = this.yardLayout();
     if (inRect(x, y, L.backBtn)) {
       this.screen = 'main';
+      return;
+    }
+    // 右上角池塘按钮 → 进入池塘
+    if (x >= 620 && x <= 730 && y >= 40 && y <= 102) {
+      this.screen = 'pond';
       return;
     }
     // 种子栏（先于地块，底部）
@@ -1419,6 +1432,26 @@
       this.toastMsg('种下了' + Pets.plantLabel(this.selectedSeed) + '！30 天后成熟');
       return;
     }
+  };
+
+  // 池塘点击：返回院子 / 领养鱼虾龟
+  Game.prototype.pondHit = function (x, y) {
+    if (x >= 20 && x <= 150 && y >= 40 && y <= 102) {
+      this.screen = 'yard';
+      return;
+    }
+    Pets.POND_ORDER.forEach(function (k, i) {
+      var card = { x: 25 + i * 250, y: 1000, w: 220, h: 150 };
+      if (inRect(x, y, card)) {
+        if (this.pond.length >= 8) {
+          this.toastMsg('池塘最多养 8 只');
+          return;
+        }
+        this.pond.push({ species: k, createdAt: Date.now() });
+        this.save();
+        this.toastMsg('领养了一只' + Pets.pondLabel(k) + '！初始 100 克，每年涨 100 克');
+      }
+    }, this);
   };
 
   Game.prototype.tombAt = function (x, y) {
@@ -1485,6 +1518,8 @@
     this.pets.forEach(function (p) { p.createdAt -= ms; });
     // 院子植物同步生长（快进后按成熟度推进）
     this.yard.forEach(function (pl) { if (pl) pl.plantedAt -= ms; });
+    // 池塘水族同步生长（快进后重量同步增加）
+    this.pond.forEach(function (p) { if (p) p.createdAt -= ms; });
     // 时间流逝一年，上次生产的冷却时间也同步过一年
     this.lastBreedAt = Math.max(0, this.lastBreedAt - ms);
     this.pets.forEach(function (p) {
@@ -1824,6 +1859,8 @@
       Render.drawRooms(ctx, this);
     } else if (this.screen === 'yard') {
       Render.drawYard(ctx, this);
+    } else if (this.screen === 'pond') {
+      Render.drawPond(ctx, this);
     } else {
       this.renderMain(ctx);
     }
