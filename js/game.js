@@ -1304,11 +1304,17 @@
       if (p.alive) p.nextLitterAt = now + Utils.rand(2, 8) * 3600 * 1000;
     });
     var pair = this.checkBreeding(now);
-    if (pair) this.doBreed(pair, now);
+    var dayN = Math.round(ms / 86400000);
+    if (pair) {
+      this.doBreed(pair, now);
+      this.toastMsg('时间快进 ' + dayN + ' 天，宠物们长大啦');
+    } else {
+      var st = this.breedStatus();
+      this.toastMsg(st.length ? '没生小猫：' + st[0] : '时间快进 ' + dayN + ' 天，宠物们长大啦');
+    }
     this.lastBreedCheck = now;
     this.rebuildNests();
     this.save();
-    this.toastMsg('时间快进 ' + Math.round(ms / 86400000) + ' 天，宠物们长大啦');
     return !!pair;
   };
 
