@@ -1,6 +1,6 @@
 /* 宠物小屋 Service Worker：缓存全部游戏文件，支持离线与"添加到主屏幕"体验 */
 'use strict';
-var CACHE = 'pet-house-v3';
+var CACHE = 'pet-house-v4';
 var ASSETS = [
   './preview.html',
   './manifest.json',
@@ -13,6 +13,7 @@ var ASSETS = [
   './js/avatar.js',
   './js/render.js',
   './js/game.js',
+  './js/rooms.js',
   './js/main.js'
 ];
 
