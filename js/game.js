@@ -1167,9 +1167,41 @@
             if (pet.alive) self.pet(pet);
           }
         },
+        {
+          label: '放养', style: 'danger', onTap: function () {
+            self.openReleaseConfirm(pet);
+          }
+        },
         { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
       ]
     };
+  };
+
+  // 放养确认：不可逆，先让玩家确认
+  Game.prototype.openReleaseConfirm = function (pet) {
+    var self = this;
+    this.modal = {
+      title: '放养 ' + pet.name + '？',
+      lines: [
+        '放养后它不再占用房间位置，可以再领养新宠物',
+        '但它会离开小屋，无法找回',
+        '确定要放养它吗？'
+      ],
+      buttons: [
+        { label: '确定放养', style: 'danger', onTap: function () { self.releasePet(pet); } },
+        { label: '取消', onTap: function () { self.closeModal(); } }
+      ]
+    };
+  };
+
+  // 放养：从房间移除，腾出位置
+  Game.prototype.releasePet = function (pet) {
+    this.pets = this.pets.filter(function (p) { return p.id !== pet.id; });
+    if (this.selectedId === pet.id) this.selectedId = null;
+    this.closeModal();
+    this.rebuildNests();
+    this.save();
+    this.toastMsg(pet.name + ' 放养啦，可以再领养新宠物了（当前 ' + this.pets.length + '/10）');
   };
 
   Game.prototype.openHelp = function () {
