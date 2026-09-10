@@ -36,15 +36,7 @@
     var sys = platform.system();
     this.sys = sys;
     this.dpr = sys.dpr || 1;
-    this.fitScale = Math.min(sys.width / W, sys.height / H);
-    this.offX = (sys.width - W * this.fitScale) / 2;
-    this.offY = (sys.height - H * this.fitScale) / 2;
-    canvas.width = Math.round(sys.width * this.dpr);
-    canvas.height = Math.round(sys.height * this.dpr);
-    if (platform.isBrowser) {
-      canvas.style.width = sys.width + 'px';
-      canvas.style.height = sys.height + 'px';
-    }
+    this.resize();
 
     // 演示 / 调试模式（浏览器 query: ?demo=1&day=73；仅房间 1 生效）
     var q = platform.getQuery();
@@ -135,6 +127,23 @@
       ],
       confirmBtn: { x: 150, y: 975, w: 450, h: 92 }
     };
+  };
+
+  // 窗口尺寸变化（F11 全屏 / 拖拽窗口 / 移动端旋转）时重算画布适配；所有房间共享同一 canvas
+  Game.prototype.resize = function () {
+    var sys = this.P.system();
+    this.sys = sys;
+    this.dpr = sys.dpr || 1;
+    this.fitScale = Math.min(sys.width / W, sys.height / H);
+    this.offX = (sys.width - W * this.fitScale) / 2;
+    this.offY = (sys.height - H * this.fitScale) / 2;
+    var canvas = this.canvas;
+    canvas.width = Math.round(sys.width * this.dpr);
+    canvas.height = Math.round(sys.height * this.dpr);
+    if (this.P.isBrowser) {
+      canvas.style.width = sys.width + 'px';
+      canvas.style.height = sys.height + 'px';
+    }
   };
 
   // ---------------- 存档 ----------------
