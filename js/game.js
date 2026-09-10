@@ -1261,20 +1261,25 @@
   };
 
   // 命中检测
-  // 状态卡自适应宽度：宠物少时全部整屏显示不"超框"；
-  // 宠物多时保持 140px 可读宽度（名字能完整显示），超出部分滑动查看
-  Game.prototype.chipW = function () {
+  // 状态卡布局：≤5 只单行整屏显示；6~10 只自动两行（每行最多 5 张），
+  // 所有卡片始终完整落在游戏区域内，不超框、不需要滑动
+  Game.prototype.chipLayout = function () {
     var n = Math.max(1, this.pets.length);
-    return Utils.clamp(Math.floor((W - LAYOUT.chipX0 * 2 - (n - 1) * LAYOUT.chipGap) / n), 140, LAYOUT.chipW);
+    var single = n <= 5;
+    var perRow = single ? n : Math.ceil(n / 2);
+    var cw = Utils.clamp(Math.floor((W - LAYOUT.chipX0 * 2 - (perRow - 1) * LAYOUT.chipGap) / perRow), 132, LAYOUT.chipW);
+    var ch = single ? LAYOUT.chipH : 74;
+    var rowGap = 8;
+    return { single: single, rows: single ? 1 : 2, perRow: perRow, cw: cw, ch: ch, rowGap: rowGap, y2: LAYOUT.chipY + ch + rowGap };
   };
 
   Game.prototype.chipMax = function () {
-    var cw = this.chipW();
-    return Math.max(0, this.pets.length * (cw + LAYOUT.chipGap) - (W - LAYOUT.chipX0 * 2));
+    return 0; // 两行全部显示，永不溢出，无需滑动
   };
 
   Game.prototype.chipScrollBy = function (dir) {
-    var page = this.chipW() + LAYOUT.chipGap;
+    var L = this.chipLayout();
+    var page = L.cw + LAYOUT.chipGap;
     this.chipScroll = Utils.clamp(this.chipScroll + dir * page * 2, 0, this.chipMax());
   };
 
@@ -1288,11 +1293,17 @@
   };
 
   Game.prototype.chipAt = function (x, y) {
-    if (y < LAYOUT.chipY || y > LAYOUT.chipY + LAYOUT.chipH) return null;
-    var cw = this.chipW();
-    for (var i = 0; i < this.pets.length; i++) {
-      var cx = LAYOUT.chipX0 + i * (cw + LAYOUT.chipGap) - this.chipScroll;
-      if (x >= cx && x <= cx + cw) return this.pets[i];
+    var L = this.chipLayout();
+    var rowY = [LAYOUT.chipY, L.y2];
+    for (var r = 0; r < L.rows; r++) {
+      if (y >= rowY[r] && y <= rowY[r] + L.ch) {
+        for (var c = 0; c < L.perRow; c++) {
+          var idx = r * L.perRow + c;
+          if (idx >= this.pets.length) return null;
+          var cx = LAYOUT.chipX0 + c * (L.cw + LAYOUT.chipGap) - this.chipScroll;
+          if (x >= cx && x <= cx + L.cw) return this.pets[idx];
+        }
+      }
     }
     return null;
   };
@@ -1753,30 +1764,15 @@
 
     Render.drawParticles(ctx, this);
 
-    // 顶部状态卡
+    // 顶部状态卡（≤5 单行 / >5 两行，始终完整显示在游戏区域内）
     this.chipScroll = Utils.clamp(this.chipScroll, 0, this.chipMax());
-    var cw = this.chipW();
+    var L = this.chipLayout();
     for (var c = 0; c < this.pets.length; c++) {
-      var cx = LAYOUT.chipX0 + c * (cw + LAYOUT.chipGap) - this.chipScroll;
-      if (cx + cw < 0 || cx > W) continue;
-      Render.drawChip(ctx, this.pets[c], cx, cw, this.pets[c].id === this.selectedId, t);
-    }
-    // 状态卡左右渐隐遮罩：宠物多了可横滑，边缘残卡自然淡出，不"超框"
-    // （先画遮罩，箭头和进度条随后画在最上层，不会被盖住）
-    if (this.chipMax() > 0) {
-      var cy0 = LAYOUT.chipY - 10, ch2 = LAYOUT.chipH + 20, fadeW = 30;
-      var gr = ctx.createLinearGradient(W - fadeW, 0, W, 0);
-      gr.addColorStop(0, 'rgba(255,246,230,0)');
-      gr.addColorStop(1, 'rgba(255,246,230,1)');
-      ctx.fillStyle = gr;
-      ctx.fillRect(W - fadeW, cy0, fadeW, ch2);
-      if (this.chipScroll > 0) {
-        var gl = ctx.createLinearGradient(0, 0, fadeW, 0);
-        gl.addColorStop(0, 'rgba(255,246,230,1)');
-        gl.addColorStop(1, 'rgba(255,246,230,0)');
-        ctx.fillStyle = gl;
-        ctx.fillRect(0, cy0, fadeW, ch2);
-      }
+      var rr = L.single ? 0 : Math.floor(c / L.perRow);
+      var col = c - rr * L.perRow;
+      var cy = rr === 0 ? LAYOUT.chipY : L.y2;
+      var cx = LAYOUT.chipX0 + col * (L.cw + LAYOUT.chipGap);
+      Render.drawChip(ctx, this.pets[c], cx, cy, L.cw, L.ch, this.pets[c].id === this.selectedId, t);
     }
 
     Render.drawChipNav(ctx, this);
