@@ -816,6 +816,11 @@
     Utils.drawText(ctx, '宠物小屋', 375, 118, { size: 50, weight: 'bold', color: '#8a5a33' });
     Utils.drawText(ctx, '选一只小宠物，和它度过每一天吧', 375, 168, { size: 22, color: '#a0805a' });
     drawSetupHearts(ctx, game);
+    // 多房间模式下可返回房间面板
+    if (game.rooms) {
+      Utils.roundRect(ctx, 20, 40, 130, 62, 14, 'rgba(255,255,255,0.9)', '#d9b98c');
+      Utils.drawText(ctx, '← 房间', 85, 72, { size: 24, color: '#8a5a33' });
+    }
 
     // 六张宠物卡（2 行 × 3 列）
     var order = Pets_speciesOrder;
@@ -1077,6 +1082,17 @@
 
   // ---------- 后台齿轮（右上角入口） ----------
   function drawAdminGear(ctx) {
+    // 房间入口（🏠，⚙ 左边）
+    var rx = 628, ry = 48, rr = 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeStyle = '#d9b98c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    Utils.drawText(ctx, '🏠', rx, ry + 2, { size: 26, color: '#8a5a33' });
+    // 后台齿轮
     var gx = 702, gy = 48, gr = 30;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.strokeStyle = '#d9b98c';
@@ -1087,6 +1103,66 @@
     ctx.stroke();
     // 齿轮符号
     Utils.drawText(ctx, '⚙', gx, gy + 2, { size: 32, color: '#8a5a33' });
+  }
+
+  // ---------- 房间面板（最多 3 个房间） ----------
+  // info: { index, exists, isCurrent, summary }
+  function roomsRects(info) {
+    var c = { x: 60, y: 220 + info.index * 230, w: 630, h: 200 };
+    var buttons;
+    if (info.exists) {
+      buttons = [
+        { id: 'enter', x: 130, y: c.y + 142, w: 230, h: 54 },
+        { id: 'reset', x: 390, y: c.y + 142, w: 230, h: 54 }
+      ];
+    } else {
+      buttons = [{ id: 'new', x: 250, y: c.y + 142, w: 250, h: 54 }];
+    }
+    return { card: c, buttons: buttons };
+  }
+
+  function drawRooms(ctx, game) {
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fff7ea');
+    bg.addColorStop(1, '#ffe9d0');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(180,120,70,0.12)';
+    drawPaw(ctx, 90, 640, 22);
+    drawPaw(ctx, 660, 900, 22);
+
+    Utils.drawText(ctx, '房间', 375, 120, { size: 44, weight: 'bold', color: '#8a5a33' });
+    Utils.drawText(ctx, '最多 3 个房间，每个房间的宠物各自独立、互不影响', 375, 165, { size: 21, color: '#a0805a' });
+
+    // 返回
+    var back = { x: 20, y: 40, w: 130, h: 62 };
+    Utils.roundRect(ctx, back.x, back.y, back.w, back.h, 14, 'rgba(255,255,255,0.9)', '#d9b98c');
+    Utils.drawText(ctx, '← 返回', back.x + back.w / 2, back.y + back.h / 2, { size: 24, color: '#8a5a33' });
+
+    for (var i = 0; i < 3; i++) {
+      var info = game.rooms ? game.rooms.roomInfo(i) : { index: i, exists: false, isCurrent: false, summary: '' };
+      var r = roomsRects(info);
+      var c = r.card;
+      Utils.roundRect(ctx, c.x, c.y, c.w, c.h, 20,
+        info.isCurrent ? 'rgba(255,255,255,0.95)' : 'rgba(238,234,226,0.9)',
+        info.isCurrent ? '#ff8f3f' : '#d9cfbe');
+      Utils.drawText(ctx, '房间 ' + (i + 1), c.x + 26, c.y + 44, { size: 28, weight: 'bold', align: 'left', color: '#6b4a35' });
+      if (info.isCurrent) {
+        Utils.drawText(ctx, '当前', c.x + c.w - 88, c.y + 46, { size: 20, weight: 'bold', color: '#ff8f3f' });
+      }
+      Utils.drawText(ctx, info.summary || (info.exists ? '已有一个存档' : '空房间，可以开新档'),
+        c.x + 26, c.y + 92, { size: 20, align: 'left', color: '#a0805a' });
+      for (var b = 0; b < r.buttons.length; b++) {
+        var btn = r.buttons[b];
+        var pressed = game.pressedId === ('rooms_' + info.index + '_' + btn.id);
+        var label = btn.id === 'enter' ? '进入' : (btn.id === 'reset' ? '重置重养' : '＋ 新房间（不重置）');
+        var accent = btn.id === 'reset';
+        Utils.roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 14,
+          pressed ? (accent ? '#e76a6a' : '#e87f2f') : (accent ? '#f08080' : '#ff8f3f'),
+          accent ? '#f08080' : '#ff8f3f');
+        Utils.drawText(ctx, label, btn.x + btn.w / 2, btn.y + btn.h / 2, { size: 22, weight: 'bold', color: '#fff' });
+      }
+    }
   }
 
   // 供 game 使用
@@ -1100,6 +1176,8 @@
     drawBall: drawBall,
     drawLitter: drawLitter,
     drawAdminGear: drawAdminGear,
+    drawRooms: drawRooms,
+    roomsRects: roomsRects,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
