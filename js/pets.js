@@ -91,6 +91,28 @@
     return Math.max(0, Math.ceil(remain));
   };
 
+  // ---------- 池塘（鱼 / 虾 / 乌龟，初始 100g，每年涨 100g） ----------
+  Pets.POND = {
+    fish:   { label: '鱼',   emoji: '🐟', color: '#4aa3df' },
+    shrimp: { label: '虾',   emoji: '🦐', color: '#e8845a' },
+    turtle: { label: '乌龟', emoji: '🐢', color: '#5ea052' }
+  };
+  Pets.POND_ORDER = ['fish', 'shrimp', 'turtle'];
+  Pets.pondLabel = function (key) {
+    return (Pets.POND[key] && Pets.POND[key].label) || '水族';
+  };
+  // 重量（克）：初始 100g，每年涨 100g，按天均摊
+  Pets.pondWeight = function (p, now) {
+    now = now || Utils.now();
+    var days = Math.max(0, (now - (p.createdAt || now)) / 86400000);
+    return 100 + days / 365 * 100;
+  };
+  // 体型因子：100g → 1.0，越重越大
+  Pets.pondScale = function (p, now) {
+    var w = Pets.pondWeight(p, now);
+    return Utils.clamp(0.6 + w / 100 * 0.4, 0.6, 2.4);
+  };
+
   function freshBeh() {
     return { state: 'idle', t: 0, tx: 0, tz: 0, pending: null, manual: false };
   }
