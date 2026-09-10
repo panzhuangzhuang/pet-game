@@ -1,6 +1,6 @@
-/* 宠物小屋 Service Worker：缓存全部游戏文件，支持离线与"添加到主屏幕"体验 */
+﻿/* 瀹犵墿灏忓眿 Service Worker锛氱紦瀛樺叏閮ㄦ父鎴忔枃浠讹紝鏀寔绂荤嚎涓?娣诲姞鍒颁富灞忓箷"浣撻獙 */
 'use strict';
-var CACHE = 'pet-house-v7';
+var CACHE = 'pet-house-v8';
 var ASSETS = [
   './preview.html',
   './manifest.json',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', function (e) {
   var url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
   var path = url.pathname;
-  // 网络优先：永远拿线上最新文件，离线时回落到缓存
+  // 缃戠粶浼樺厛锛氭案杩滄嬁绾夸笂鏈€鏂版枃浠讹紝绂荤嚎鏃跺洖钀藉埌缂撳瓨
   e.respondWith(
     fetch(e.request).then(function (res) {
       if (res && res.ok && res.type === 'basic') {
