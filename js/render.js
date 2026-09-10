@@ -1396,7 +1396,30 @@
 
     // 底部种子栏
     Utils.roundRect(ctx, 10, 970, W2 - 20, 180, 20, 'rgba(255,255,255,0.92)', '#c9a86a');
-    Utils.drawText(ctx, '种子栏（点选种子 → 点空地播种）', 375, 1000, { size: 18, weight: 'bold', color: '#6b4a35' });
+    Utils.drawText(ctx, '种子栏（点选种子 → 点空地播种）· 左边铲子可铲除未长好的植物', 375, 1000, { size: 16, weight: 'bold', color: '#6b4a35' });
+    // 铲子工具格
+    var shovelSel = game.selectedTool === 'shovel';
+    Utils.roundRect(ctx, L.tool.x, L.tool.y, L.tool.w, L.tool.h, 12,
+      shovelSel ? '#fff2d6' : 'rgba(246,227,194,0.7)',
+      shovelSel ? '#e05555' : '#d9b98c');
+    // 自绘铲子：木柄 + 铲头
+    var shx = L.tool.x + L.tool.w / 2;
+    ctx.strokeStyle = '#b07a3f';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(shx, L.tool.y + 30);
+    ctx.lineTo(shx, L.tool.y + 62);
+    ctx.stroke();
+    ctx.fillStyle = '#8d939b';
+    ctx.beginPath();
+    ctx.moveTo(shx - 14, L.tool.y + 64);
+    ctx.lineTo(shx + 14, L.tool.y + 64);
+    ctx.lineTo(shx + 9, L.tool.y + 84);
+    ctx.lineTo(shx - 9, L.tool.y + 84);
+    ctx.closePath();
+    ctx.fill();
+    Utils.drawText(ctx, '铲子', shx, L.tool.y + 96, { size: 15, color: '#6b4a35' });
     for (var s = 0; s < L.seeds.length; s++) {
       var sb = L.seeds[s];
       var def2 = Pets_plantInfo[L.seeds[s].key] || { emoji: '🌱', label: L.seeds[s].key };
@@ -1465,34 +1488,35 @@
     // 返回按钮
     Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#4aa3df');
     Utils.drawText(ctx, '← 院子', 85, 76, { size: 26, weight: 'bold', color: '#2a5a8a' });
+    // 捞网按钮（右上角）
+    var netSel = !!game.selectedNet;
+    Utils.roundRect(ctx, 620, 40, 110, 62, 14, netSel ? '#fff2d6' : 'rgba(160,210,255,0.95)', netSel ? '#e05555' : '#4aa3df');
+    Utils.drawText(ctx, netSel ? '捞网中' : '🪝 捞网', 675, 76, { size: 22, weight: 'bold', color: netSel ? '#d03f3f' : '#2a5a8a' });
     // 标题
     Utils.drawText(ctx, '小池塘 🐟', 375, 80, { size: 34, weight: 'bold', color: '#fff' });
     Utils.drawText(ctx, '初始 100 克 · 每年涨 100 克 · 最多 8 只', 375, 116, { size: 17, color: 'rgba(255,255,255,0.95)' });
 
-    // 水族（网格分布 + 游动动画）
+    // 水族（网格分布 + 游动动画，位置与点击命中共用 game.pondPos）
     var now = Date.now();
     var t = game.time / 1000;
     for (var i = 0; i < game.pond.length && i < 8; i++) {
       var p = game.pond[i];
-      var col = i % 4, row = Math.floor(i / 4);
-      var bx = 100 + col * 158, by = 330 + row * 260;
+      var pos = game.pondPos(i, t);
+      var bx = pos.ax, by = pos.ay;
       var def = Pets_pondInfo[p.species] || { emoji: '🐟', label: '鱼' };
       var sc = Pets_pondScale(p, now);
-      var wob = p.species === 'turtle' ? 4 : (p.species === 'shrimp' ? 22 : 14);
-      var ax = bx + Math.sin(t * 1.1 + i * 1.7) * wob;
-      var ay = by + Math.cos(t * 0.8 + i * 2.3) * (p.species === 'turtle' ? 3 : 10);
       var fs = Math.max(30, 44 * sc);
       // 重量标签
       var wg = Math.round(Pets_pondWeight(p, now));
       var tag = def.label + ' ' + wg + 'g';
       var tw = Utils.measure(ctx, tag, 17) + 18;
-      Utils.roundRect(ctx, ax - tw / 2, ay - fs - 46, tw, 26, 13, 'rgba(255,255,255,0.92)', '#4aa3df');
-      Utils.drawText(ctx, tag, ax, ay - fs - 27, { size: 17, weight: 'bold', color: '#2a5a8a' });
+      Utils.roundRect(ctx, bx - tw / 2, by - fs - 46, tw, 26, 13, 'rgba(255,255,255,0.92)', netSel ? '#e05555' : '#4aa3df');
+      Utils.drawText(ctx, tag, bx, by - fs - 27, { size: 17, weight: 'bold', color: netSel ? '#d03f3f' : '#2a5a8a' });
       // 动物
-      Utils.drawText(ctx, def.emoji, ax, ay, { size: fs });
+      Utils.drawText(ctx, def.emoji, bx, by, { size: fs });
       // 年龄
       var days = Math.max(0, Math.floor((now - (p.createdAt || now)) / 86400000));
-      Utils.drawText(ctx, days + ' 天', ax, ay + fs / 2 + 14, { size: 14, color: 'rgba(255,255,255,0.9)' });
+      Utils.drawText(ctx, days + ' 天', bx, by + fs / 2 + 14, { size: 14, color: 'rgba(255,255,255,0.9)' });
     }
     if (game.pond.length === 0) {
       Utils.drawText(ctx, '池塘空空的，去下面领养一只吧～', 375, 560, { size: 24, color: 'rgba(255,255,255,0.95)' });
