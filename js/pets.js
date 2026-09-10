@@ -76,7 +76,7 @@
       type: 'photo',
       dataURL: dataURL,
       colors: colors,
-      ears: species === 'cat' ? 'cat' : (species === 'dog' ? 'dog' : 'round'),
+      ears: 'round',
       texture: null
     };
     return pet;
