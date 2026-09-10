@@ -94,6 +94,10 @@
     // 第六轮：猫砂盆脏度（0~100，一天不铲约满；脏满影响精力）与铲屎
     this.litterDirt = 0;
     this.litterWarnAt = 0;  // 臭气警告时间戳（每天最多提示一次）
+    // 院子：六块地 + 种子（初始每种 1 颗）
+    this.yard = [null, null, null, null, null, null];
+    this.seeds = { orchid: 1, corn: 1, peach: 1, peanut: 1, watermelon: 1, banana: 1 };
+    this.selectedSeed = null;
 
     this.setup = {
       names: { cat: '咪咪', dog: '旺财', pig: '哼哼', cow: '哞哞', sheep: '咩咩', chick: '叽叽' },
@@ -154,7 +158,9 @@
       lastSavedAt: Date.now(),
       pets: this.pets.map(Pets.toJSON),
       bowls: this.bowls,
-      litterDirt: this.litterDirt
+      litterDirt: this.litterDirt,
+      yard: this.yard,
+      seeds: this.seeds
     };
     this.P.setStorage(this.saveKey, save);
   };
@@ -243,6 +249,15 @@
       };
       // 猫砂盆脏度（旧存档无 → 干净 0）
       this.litterDirt = save.litterDirt != null ? Math.max(0, Math.min(100, save.litterDirt)) : 0;
+      // 院子：六块地 + 种子（旧存档无 → 空院子 + 初始每种 1 颗）
+      this.yard = (save.yard && save.yard.length === 6) ? save.yard.map(function (pl) {
+        return (pl && pl.type) ? { type: pl.type, plantedAt: pl.plantedAt || 0 } : null;
+      }) : [null, null, null, null, null, null];
+      this.seeds = { orchid: 1, corn: 1, peach: 1, peanut: 1, watermelon: 1, banana: 1 };
+      if (save.seeds) {
+        Pets.PLANT_ORDER.forEach(function (k) { if (save.seeds[k] != null) self.seeds[k] = save.seeds[k]; });
+      }
+      this.selectedSeed = null;
       // 离线时间流逝（游戏时间 = 真实时间；碗也会随离线时间消耗）
       var delta = Math.max(0, now - (save.lastSavedAt || now));
       var br = this.bowlRate();
@@ -284,7 +299,7 @@
   Game.prototype.start = function () {
     var self = this;
     if (this._running) return;
-    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES });
+    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES, plantInfo: Pets.PLANTS, plantGrowth: Pets.plantGrowth, plantLabel: Pets.plantLabel });
     if (!this._bound) {
       this._bound = true;
       this.P.onHide(function () { self.save(); });
@@ -1139,6 +1154,7 @@
     if (this.screen === 'setup') { this.setupHit(x, y); return; }
     if (this.screen === 'addpet') { this.addpetHit(x, y); return; }
     if (this.screen === 'rooms') { this.roomsHit(x, y); return; }
+    if (this.screen === 'yard') { this.yardHit(x, y); return; }
 
     // 主界面：底部按钮
     var btns = LAYOUT.buttons;
@@ -1206,6 +1222,11 @@
     // 墓碑
     var tomb = this.tombAt(x, y);
     if (tomb) { this.openTombModal(tomb); return; }
+    // 门：进入院子（放在宠物/碗/墓碑之后，避免挡住场景交互）
+    if (this.doorAt(x, y)) {
+      this.screen = 'yard';
+      return;
+    }
     // 顶部区域可拖动状态卡
     if (y < 210) this.dragChip = true;
   };
@@ -1323,6 +1344,83 @@
     return best;
   };
 
+  // 院子门命中（后墙中央，窗户与挂画之间）
+  Game.prototype.doorAt = function (x, y) {
+    return x >= 350 && x <= 470 && y >= 235 && y <= 475;
+  };
+
+  // 院子布局（六块地 2×3 + 底部种子栏）
+  Game.prototype.yardLayout = function () {
+    return {
+      backBtn: { x: 20, y: 40, w: 130, h: 62 },
+      plots: [
+        { x: 25, y: 330, w: 210, h: 165 },
+        { x: 270, y: 330, w: 210, h: 165 },
+        { x: 515, y: 330, w: 210, h: 165 },
+        { x: 25, y: 525, w: 210, h: 165 },
+        { x: 270, y: 525, w: 210, h: 165 },
+        { x: 515, y: 525, w: 210, h: 165 }
+      ],
+      seeds: Pets.PLANT_ORDER.map(function (k, i) {
+        return { key: k, x: 25 + i * 122, y: 1015, w: 110, h: 100 };
+      })
+    };
+  };
+
+  // 院子里点击：返回 / 选种子 / 播种 / 收获
+  Game.prototype.yardHit = function (x, y) {
+    var L = this.yardLayout();
+    if (inRect(x, y, L.backBtn)) {
+      this.screen = 'main';
+      return;
+    }
+    // 种子栏（先于地块，底部）
+    for (var i = 0; i < L.seeds.length; i++) {
+      var s = L.seeds[i];
+      if (inRect(x, y, s)) {
+        if (this.seeds[s.key] > 0) {
+          this.selectedSeed = this.selectedSeed === s.key ? null : s.key;
+          this.toastMsg(this.selectedSeed ? '选中了' + Pets.plantLabel(s.key) + '种子，点空地播种' : '取消选择');
+        } else {
+          this.toastMsg('没有' + Pets.plantLabel(s.key) + '种子了，收获后可获得');
+        }
+        return;
+      }
+    }
+    // 地块
+    for (var j = 0; j < L.plots.length; j++) {
+      if (!inRect(x, y, L.plots[j])) continue;
+      var pl = this.yard[j];
+      var now = Date.now();
+      if (pl) {
+        if (Pets.plantMature(pl, now)) {
+          // 收获：获得 1 颗同种种子
+          this.seeds[pl.type] = (this.seeds[pl.type] || 0) + 1;
+          this.yard[j] = null;
+          this.save();
+          this.toastMsg('收获了一颗' + Pets.plantLabel(pl.type) + '种子！');
+        } else {
+          var left = Pets.plantRemainDays(pl, now);
+          this.toastMsg(Pets.plantLabel(pl.type) + '还要 ' + left + ' 天成熟');
+        }
+        return;
+      }
+      if (!this.selectedSeed) {
+        this.toastMsg('先点下面选一颗种子，再点空地播种');
+        return;
+      }
+      if (this.seeds[this.selectedSeed] <= 0) {
+        this.toastMsg('没有' + Pets.plantLabel(this.selectedSeed) + '种子了');
+        return;
+      }
+      this.seeds[this.selectedSeed]--;
+      this.yard[j] = { type: this.selectedSeed, plantedAt: now };
+      this.save();
+      this.toastMsg('种下了' + Pets.plantLabel(this.selectedSeed) + '！30 天后成熟');
+      return;
+    }
+  };
+
   Game.prototype.tombAt = function (x, y) {
     for (var i = 0; i < this.pets.length; i++) {
       var pet = this.pets[i];
@@ -1385,6 +1483,8 @@
     var now = Date.now();
     var self = this;
     this.pets.forEach(function (p) { p.createdAt -= ms; });
+    // 院子植物同步生长（快进后按成熟度推进）
+    this.yard.forEach(function (pl) { if (pl) pl.plantedAt -= ms; });
     // 时间流逝一年，上次生产的冷却时间也同步过一年
     this.lastBreedAt = Math.max(0, this.lastBreedAt - ms);
     this.pets.forEach(function (p) {
@@ -1722,6 +1822,8 @@
       Render.drawAddPet(ctx, this);
     } else if (this.screen === 'rooms') {
       Render.drawRooms(ctx, this);
+    } else if (this.screen === 'yard') {
+      Render.drawYard(ctx, this);
     } else {
       this.renderMain(ctx);
     }
