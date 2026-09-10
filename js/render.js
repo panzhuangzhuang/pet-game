@@ -292,34 +292,97 @@
     Utils.drawText(ctx, nest.name, sx, tagTop, { size: 12 * sc, weight: 'bold', color: '#7a4f26' });
   }
 
-  // ---------- 猫砂盆（第四轮） ----------
-  function drawLitter(ctx, t) {
+  // ---------- 猫砂盆（第四轮 + 第六轮美化与脏度） ----------
+  function drawLitter(ctx, t, dirt) {
     var L = LAYOUT.litter;
     var p = project(L.fx, L.fz);
     var sx = p.x, sy = p.y, sc = p.sc;
-    // 阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    Utils.ell(ctx, sx + 4 * sc, sy + 3 * sc, 84 * sc, 14 * sc);
-    // 盆身（前高后低的猫砂盆）
+    var d = (dirt == null) ? 0 : Math.max(0, Math.min(100, dirt));
+    // 地面投影
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    Utils.ell(ctx, sx + 5 * sc, sy + 4 * sc, 98 * sc, 16 * sc);
+    // 盆体后壁（更深的蓝色，立体纵深）
+    ctx.fillStyle = '#4f86a8';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy - 24 * sc, 98 * sc, 22 * sc, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 盆体外壁（前低后高的梯形盆）
     ctx.fillStyle = '#7db8d9';
-    Utils.roundRect(ctx, sx - 92 * sc, sy - 34 * sc, 184 * sc, 34 * sc, 14 * sc);
-    ctx.fillStyle = '#9ecbe4';
-    Utils.roundRect(ctx, sx - 92 * sc, sy - 34 * sc, 184 * sc, 16 * sc, 14 * sc);
-    // 盆沿
+    ctx.beginPath();
+    ctx.moveTo(sx - 96 * sc, sy - 36 * sc);
+    ctx.lineTo(sx + 96 * sc, sy - 36 * sc);
+    ctx.lineTo(sx + 102 * sc, sy);
+    ctx.lineTo(sx - 102 * sc, sy);
+    ctx.closePath();
+    ctx.fill();
+    // 外壁高光（左上方受光）
+    ctx.fillStyle = 'rgba(255,255,255,0.32)';
+    ctx.beginPath();
+    ctx.moveTo(sx - 96 * sc, sy - 36 * sc);
+    ctx.lineTo(sx + 20 * sc, sy - 36 * sc);
+    ctx.lineTo(sx + 24 * sc, sy - 8 * sc);
+    ctx.lineTo(sx - 96 * sc, sy - 8 * sc);
+    ctx.closePath();
+    ctx.fill();
+    // 盆沿（厚边 + 上沿高光）
     ctx.fillStyle = '#5d93b5';
-    Utils.roundRect(ctx, sx - 96 * sc, sy - 40 * sc, 192 * sc, 10 * sc, 8 * sc);
-    // 猫砂
-    ctx.fillStyle = '#e8e2d0';
-    Utils.roundRect(ctx, sx - 86 * sc, sy - 30 * sc, 172 * sc, 12 * sc, 8 * sc);
+    Utils.roundRect(ctx, sx - 103 * sc, sy - 44 * sc, 206 * sc, 13 * sc, 8 * sc);
+    ctx.fillStyle = 'rgba(255,255,255,0.38)';
+    Utils.roundRect(ctx, sx - 103 * sc, sy - 44 * sc, 206 * sc, 5 * sc, 8 * sc);
+    // 猫砂（颜色随脏度变深）
+    var sandBase = d < 50 ? '#e9e2cf' : '#d9cba6';
+    var sandDark = d < 50 ? '#d2c8ac' : '#c4ad7d';
+    ctx.fillStyle = sandBase;
+    Utils.roundRect(ctx, sx - 90 * sc, sy - 34 * sc, 180 * sc, 26 * sc, 10 * sc);
     // 猫砂颗粒
-    ctx.fillStyle = '#cfc7ae';
-    for (var i = 0; i < 10; i++) {
-      var gx = sx - 70 * sc + (i * 17 % 140) * sc;
-      var gz = sy - 24 * sc + (i % 3) * 4 * sc;
-      Utils.ell(ctx, gx, gz, 3 * sc, 2 * sc);
+    ctx.fillStyle = sandDark;
+    for (var i = 0; i < 22; i++) {
+      var gx = sx - 80 * sc + ((i * 37 + 13) % 160) * sc;
+      var gy = sy - 30 * sc + ((i * 53) % 22) * sc;
+      Utils.ell(ctx, gx, gy, 2.6 * sc, 1.8 * sc);
+    }
+    // 污渍结块（随脏度增多）
+    ctx.fillStyle = '#a98a55';
+    for (var j = 0; j < Math.floor(d / 8); j++) {
+      var bx = sx - 70 * sc + ((j * 41 + 7) % 140) * sc;
+      var by = sy - 24 * sc + ((j * 29) % 14) * sc;
+      Utils.ell(ctx, bx, by, 6 * sc, 4 * sc);
+    }
+    if (d >= 60) {
+      ctx.fillStyle = 'rgba(139,105,58,0.65)';
+      for (var k = 0; k < Math.floor((d - 60) / 5); k++) {
+        var bx2 = sx - 60 * sc + ((k * 53 + 11) % 120) * sc;
+        var by2 = sy - 22 * sc + ((k * 37) % 12) * sc;
+        Utils.ell(ctx, bx2, by2, 4 * sc, 3 * sc);
+      }
+    }
+    // 脏度进度条（盆上方）
+    var bw = 64 * sc, bh = 5 * sc, bx0 = sx - bw / 2, by0 = sy - 62 * sc;
+    Utils.roundRect(ctx, bx0 - 2 * sc, by0 - 2 * sc, bw + 4 * sc, bh + 4 * sc, 3 * sc, 'rgba(255,255,255,0.9)');
+    if (d > 0) {
+      var barColor = d < 60 ? '#8bc34a' : (d < 90 ? '#ffb300' : '#e53935');
+      ctx.fillStyle = barColor;
+      Utils.roundRect(ctx, bx0, by0, Math.max(3 * sc, bw * d / 100), bh, 2 * sc);
+    }
+    Utils.drawText(ctx, '脏度', bx0 - 22 * sc, by0 + 4 * sc, { size: 10 * sc, color: '#8a6a45' });
+    // 铲屎提示（快满时）
+    if (d >= 80) {
+      Utils.drawText(ctx, '该铲屎啦！', sx, sy - 72 * sc, { size: 13 * sc, weight: 'bold', color: '#e53935' });
+    }
+    // 臭气（脏满时飘动）
+    if (d >= 100) {
+      for (var q = 0; q < 3; q++) {
+        var qt = ((t * 0.5 + q * 0.33) % 1);
+        var qy = sy - 50 * sc - qt * 28 * sc;
+        var qx = sx - 30 * sc + q * 30 * sc + Math.sin((t + q * 2) * 2) * 5 * sc;
+        ctx.fillStyle = 'rgba(120,120,120,' + (0.45 * (1 - qt)) + ')';
+        ctx.beginPath();
+        ctx.arc(qx, qy, 5 * sc, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     // 标签
-    Utils.drawText(ctx, '猫砂盆', sx, sy + 26 * sc, { size: 20 * Math.max(0.8, sc), color: '#8a6a45' });
+    Utils.drawText(ctx, '猫砂盆', sx, sy + 28 * sc, { size: 20 * Math.max(0.8, sc), color: '#8a6a45' });
   }
 
   // ---------- 足球 ----------
