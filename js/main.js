@@ -20,6 +20,10 @@
     if (Platform.isBrowser && typeof window !== 'undefined') {
       window.__game = rooms.currentGame();
       window.__rooms = rooms;
+      // 窗口尺寸变化（F11 全屏 / 拖拽 / 移动端旋转）时重算画布适配
+      var onResize = function () { rooms.resizeAll(); };
+      window.addEventListener('resize', onResize);
+      window.addEventListener('orientationchange', onResize);
     }
     return rooms;
   };
