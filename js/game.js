@@ -1252,12 +1252,19 @@
   };
 
   // 命中检测
+  // 状态卡自适应宽度：宠物少时全部整屏显示不"超框"；多时保持可滑动
+  Game.prototype.chipW = function () {
+    var n = Math.max(1, this.pets.length);
+    return Utils.clamp(Math.floor((W - LAYOUT.chipX0 * 2 - (n - 1) * LAYOUT.chipGap) / n), 96, LAYOUT.chipW);
+  };
+
   Game.prototype.chipMax = function () {
-    return Math.max(0, this.pets.length * (LAYOUT.chipW + LAYOUT.chipGap) - (W - LAYOUT.chipX0 * 2));
+    var cw = this.chipW();
+    return Math.max(0, this.pets.length * (cw + LAYOUT.chipGap) - (W - LAYOUT.chipX0 * 2));
   };
 
   Game.prototype.chipScrollBy = function (dir) {
-    var page = LAYOUT.chipW + LAYOUT.chipGap;
+    var page = this.chipW() + LAYOUT.chipGap;
     this.chipScroll = Utils.clamp(this.chipScroll + dir * page * 2, 0, this.chipMax());
   };
 
@@ -1272,9 +1279,10 @@
 
   Game.prototype.chipAt = function (x, y) {
     if (y < LAYOUT.chipY || y > LAYOUT.chipY + LAYOUT.chipH) return null;
+    var cw = this.chipW();
     for (var i = 0; i < this.pets.length; i++) {
-      var cx = LAYOUT.chipX0 + i * (LAYOUT.chipW + LAYOUT.chipGap) - this.chipScroll;
-      if (x >= cx && x <= cx + LAYOUT.chipW) return this.pets[i];
+      var cx = LAYOUT.chipX0 + i * (cw + LAYOUT.chipGap) - this.chipScroll;
+      if (x >= cx && x <= cx + cw) return this.pets[i];
     }
     return null;
   };
@@ -1737,11 +1745,30 @@
 
     // 顶部状态卡
     this.chipScroll = Utils.clamp(this.chipScroll, 0, this.chipMax());
+    var cw = this.chipW();
     for (var c = 0; c < this.pets.length; c++) {
-      var cx = LAYOUT.chipX0 + c * (LAYOUT.chipW + LAYOUT.chipGap) - this.chipScroll;
-      if (cx + LAYOUT.chipW < 0 || cx > W) continue;
-      Render.drawChip(ctx, this.pets[c], cx, this.pets[c].id === this.selectedId, t);
+      var cx = LAYOUT.chipX0 + c * (cw + LAYOUT.chipGap) - this.chipScroll;
+      if (cx + cw < 0 || cx > W) continue;
+      Render.drawChip(ctx, this.pets[c], cx, cw, this.pets[c].id === this.selectedId, t);
     }
+    // 状态卡左右渐隐遮罩：宠物多了可横滑，边缘残卡自然淡出，不"超框"
+    // （先画遮罩，箭头和进度条随后画在最上层，不会被盖住）
+    if (this.chipMax() > 0) {
+      var cy0 = LAYOUT.chipY - 10, ch2 = LAYOUT.chipH + 20, fadeW = 30;
+      var gr = ctx.createLinearGradient(W - fadeW, 0, W, 0);
+      gr.addColorStop(0, 'rgba(255,246,230,0)');
+      gr.addColorStop(1, 'rgba(255,246,230,1)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(W - fadeW, cy0, fadeW, ch2);
+      if (this.chipScroll > 0) {
+        var gl = ctx.createLinearGradient(0, 0, fadeW, 0);
+        gl.addColorStop(0, 'rgba(255,246,230,1)');
+        gl.addColorStop(1, 'rgba(255,246,230,0)');
+        ctx.fillStyle = gl;
+        ctx.fillRect(0, cy0, fadeW, ch2);
+      }
+    }
+
     Render.drawChipNav(ctx, this);
 
     Render.drawActionBar(ctx, this);
