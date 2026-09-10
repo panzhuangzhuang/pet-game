@@ -115,14 +115,19 @@
       photo: null,
       name: '',
       species: 'cat',
+      gender: null,                                  // 领养时手动选公母；null = 随机
       backBtn: { x: 20, y: 40, w: 130, h: 62 },
       photoArea: { x: 125, y: 175, w: 500, h: 400 },
       reselectBtn: { x: 480, y: 505, w: 130, h: 50 },
       nameBox: { x: 330, y: 820, w: 320, h: 64 },
+      genderBtns: [
+        { value: 'male', label: '♂ 公', x: 165, y: 922, w: 205, h: 54 },
+        { value: 'female', label: '♀ 母', x: 390, y: 922, w: 205, h: 54 }
+      ],
       speciesBtns: [
-        { value: 'cat', label: '小猫', x: 175, y: 990, w: 120, h: 62 },
-        { value: 'dog', label: '小狗', x: 315, y: 990, w: 120, h: 62 },
-        { value: 'custom', label: '其他', x: 455, y: 990, w: 120, h: 62 }
+        { value: 'cat', label: '小猫', x: 175, y: 1014, w: 120, h: 62 },
+        { value: 'dog', label: '小狗', x: 315, y: 1014, w: 120, h: 62 },
+        { value: 'custom', label: '其他', x: 455, y: 1014, w: 120, h: 62 }
       ],
       confirmBtn: { x: 150, y: 1100, w: 450, h: 100 },
       quickCatBtn: { x: 150, y: 1218, w: 205, h: 58 },
@@ -1338,6 +1343,9 @@
       });
       return;
     }
+    for (var i = 0; i < a.genderBtns.length; i++) {
+      if (inRect(x, y, a.genderBtns[i])) { a.gender = a.genderBtns[i].value; return; }
+    }
     for (var i = 0; i < a.speciesBtns.length; i++) {
       if (inRect(x, y, a.speciesBtns[i])) { a.species = a.speciesBtns[i].value; return; }
     }
@@ -1358,6 +1366,7 @@
     this.P.textInput({ title: species === 'cat' ? '给小猫起个名字' : '给小狗起个名字', defaultValue: def, maxLength: 8 }, function (val) {
       var name = (val || '').trim() || def;
       var pet = Pets.createBuiltIn(species, name);
+      if (self.addpet.gender) pet.gender = self.addpet.gender;   // 领养时手动选的性别
       self.pets.push(pet);
       self.selectedId = pet.id;
       self.screen = 'main';
@@ -1387,6 +1396,7 @@
     var name = (a.name || '').trim() || '我的宠物';
     var pet = Pets.createFromPhoto(name, a.species, a.photo.dataURL, a.photo.colors);
     pet.avatar.texture = a.photo.texture;
+    if (a.gender) pet.gender = a.gender;              // 领养时手动选的性别
     this.pets.push(pet);
     this.selectedId = pet.id;
     this.resetAddPet();
