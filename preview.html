@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#ff8f3f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>宠物小屋 · 预览</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #f7e8d0; }
@@ -22,6 +27,12 @@
   // 错误捕获（便于调试）
   window.addEventListener('error', function (e) { document.title = 'ERR:' + (e.message || 'unknown'); });
   window.addEventListener('unhandledrejection', function (e) { document.title = 'ERR:' + String((e.reason && e.reason.message) || e.reason); });
+  // 注册 Service Worker（离线 + 添加主屏幕体验）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* 静默失败，不影响游戏 */ });
+    });
+  }
 </script>
 <script src="js/utils.js"></script>
 <script src="js/platform.js"></script>
