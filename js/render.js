@@ -1157,8 +1157,10 @@
       var btn = rects[r].btn;
       var bx = rects[r].x, by = rects[r].y, bw = rects[r].w, bh = rects[r].h;
       var primary = btn.style !== 'ghost';
+      var fillC = btn.style === 'danger' ? '#e05555' : (primary ? '#ff8f3f' : '#f0e4d2');
+      var strokeC = btn.style === 'danger' ? '#d03f3f' : (primary ? '#ff8f3f' : '#d9b98c');
       Utils.roundRect(ctx, bx + 2, by + 3, bw, bh, 16, 'rgba(140,90,50,0.18)');
-      Utils.roundRect(ctx, bx, by, bw, bh, 16, primary ? '#ff8f3f' : '#f0e4d2', primary ? '#ff8f3f' : '#d9b98c');
+      Utils.roundRect(ctx, bx, by, bw, bh, 16, fillC, strokeC);
       Utils.drawText(ctx, btn.label, bx + bw / 2, by + bh / 2, { size: 25, weight: 'bold', color: primary ? '#fff' : '#8a5a33' });
     }
   }
