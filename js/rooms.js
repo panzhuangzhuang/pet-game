@@ -51,6 +51,13 @@
     return -1;
   };
 
+  // 窗口尺寸变化时重算所有房间实例的画布适配（共享同一 canvas）
+  Rooms.prototype.resizeAll = function () {
+    for (var i = 0; i < MAX_ROOMS; i++) {
+      if (this.games[i]) this.games[i].resize();
+    }
+  };
+
   Rooms.prototype.currentGame = function () {
     return this.games[this.current] || null;
   };
