@@ -60,6 +60,37 @@
     return (Pets.SPECIES[sp] && Pets.SPECIES[sp].label) || '照片伙伴';
   };
 
+  // ---------- 院子植物（六种，成熟 30 天） ----------
+  Pets.PLANTS = {
+    orchid:      { label: '蝴蝶兰', emoji: '🌸', leaf: '#4fae6b', flower: '#c77bff', days: 30 },
+    corn:        { label: '玉米',   emoji: '🌽', leaf: '#5caf4f', flower: '#ffc93c', days: 30 },
+    peach:       { label: '桃子',   emoji: '🍑', leaf: '#4fae6b', flower: '#ff8f6b', days: 30 },
+    peanut:      { label: '花生',   emoji: '🥜', leaf: '#5caf4f', flower: '#d9a066', days: 30 },
+    watermelon:  { label: '西瓜',   emoji: '🍉', leaf: '#3f9e4f', flower: '#5ecf6a', days: 30 },
+    banana:      { label: '香蕉',   emoji: '🍌', leaf: '#4a9e3f', flower: '#ffe14d', days: 30 }
+  };
+  Pets.PLANT_ORDER = ['orchid', 'corn', 'peach', 'peanut', 'watermelon', 'banana'];
+  Pets.plantLabel = function (key) {
+    return (Pets.PLANTS[key] && Pets.PLANTS[key].label) || '植物';
+  };
+  // 植物成熟度 0~1（按真实时间/快进时间计算）
+  Pets.plantGrowth = function (pl, now) {
+    if (!pl || !pl.plantedAt) return 0;
+    var def = Pets.PLANTS[pl.type];
+    var days = (def && def.days) || 30;
+    return Math.max(0, Math.min(1, (now - pl.plantedAt) / (days * 86400000)));
+  };
+  Pets.plantMature = function (pl, now) {
+    return Pets.plantGrowth(pl, now) >= 1;
+  };
+  Pets.plantRemainDays = function (pl, now) {
+    if (!pl) return 0;
+    var def = Pets.PLANTS[pl.type];
+    var days = (def && def.days) || 30;
+    var remain = days - (now - pl.plantedAt) / 86400000;
+    return Math.max(0, Math.ceil(remain));
+  };
+
   function freshBeh() {
     return { state: 'idle', t: 0, tx: 0, tz: 0, pending: null, manual: false };
   }
