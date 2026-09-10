@@ -1088,15 +1088,15 @@
         return;
       }
     }
+    // 后台齿轮（右上角，优先于状态卡箭头）
+    if (x >= 666 && x <= 738 && y >= 12 && y <= 84) {
+      this.openAdmin();
+      return;
+    }
     // 状态卡滚动箭头
     var nav = this.chipNavAt(x, y);
     if (nav) {
       this.chipScrollBy(nav === 'left' ? -1 : 1);
-      return;
-    }
-    // 后台齿轮（右上角）
-    if (x >= 666 && x <= 738 && y >= 12 && y <= 84) {
-      this.openAdmin();
       return;
     }
     // 状态卡
@@ -1298,6 +1298,8 @@
     var now = Date.now();
     var self = this;
     this.pets.forEach(function (p) { p.createdAt -= ms; });
+    // 时间流逝一年，上次生产的冷却时间也同步过一年
+    this.lastBreedAt = Math.max(0, this.lastBreedAt - ms);
     this.pets.forEach(function (p) {
       if (p.alive) p.nextLitterAt = now + Utils.rand(2, 8) * 3600 * 1000;
     });
@@ -1310,16 +1312,49 @@
     return !!pair;
   };
 
+  // 繁殖状态诊断：告诉玩家当前为什么能生 / 为什么还不能生
+  Game.prototype.breedStatus = function () {
+    var now = Date.now(), out = [];
+    var groups = {
+      cat: { m: 0, f: 0, mYoung: 0, fYoung: 0 },
+      dog: { m: 0, f: 0, mYoung: 0, fYoung: 0 }
+    };
+    this.pets.forEach(function (p) {
+      if (!p.alive) return;
+      var g = groups[p.species];
+      if (!g) return;
+      var age = now - p.createdAt;
+      if (p.gender === 'male') { g.m++; if (!g.mYoung || age < g.mYoung) g.mYoung = age; }
+      else if (p.gender === 'female') { g.f++; if (!g.fYoung || age < g.fYoung) g.fYoung = age; }
+    });
+    var coolDays = Math.floor((now - this.lastBreedAt) / 86400000);
+    ['cat', 'dog'].forEach(function (sp) {
+      var g = groups[sp], name = sp === 'cat' ? '猫' : '狗';
+      if (!g.m && !g.f) return;
+      if (!g.m || !g.f) { out.push(name + '：' + g.m + '公 ' + g.f + '母，需要一公一母'); return; }
+      var bornAge = Math.min(g.mYoung, g.fYoung);
+      var ageDays = Math.floor(bornAge / 86400000);
+      var need = 365 - ageDays, coolNeed = 365 - coolDays;
+      if (need > 0) out.push(name + '：年龄还差 ' + need + ' 天才满一年');
+      else if (coolNeed > 0) out.push(name + '：上次生产后冷却还剩 ' + coolNeed + ' 天');
+      else out.push(name + '：已可生，+365 天即生一窝');
+    });
+    return out;
+  };
+
   Game.prototype.openAdmin = function () {
     var self = this;
     var days = this.maxAgeDays();
+    var st = this.breedStatus();
+    var lines = [
+      '年龄最大的宠物：' + days + ' 天',
+      '快进=正常照料，体重会涨，满一年公母生小猫'
+    ];
+    for (var i = 0; i < st.length; i++) lines.push(st[i]);
+    if (!st.length) lines.push('还没有宠物，先领养一只吧');
     this.modal = {
       title: '后台 · 时间快进',
-      lines: [
-        '年龄最大的宠物：' + days + ' 天',
-        '快进视为正常照料：宠物不会饿死，',
-        '体重会涨，满一年的公母会自动生小猫'
-      ],
+      lines: lines,
       rows: [
         [
           { label: '+1 天', onTap: function () { if (!self.advanceTime(86400000)) self.openAdmin(); } },
