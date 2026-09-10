@@ -505,7 +505,7 @@
     return 'idle';
   }
 
-  function drawPet(ctx, pet, t, selected, time) {
+  function drawPet(ctx, pet, t, selected, time, lifted) {
     var p = project(pet.x, pet.z);
     var sc = p.sc;
     var sx = p.x, sy = p.y;
@@ -514,6 +514,11 @@
     var s = 200 * sc * wf;
     var eatOffset = (pet.beh.state === 'eat' || pet.beh.state === 'drink') ? pet.eatSide * 40 * sc : 0;
     sx += eatOffset;
+    // 拎起状态：上浮 + 飘动
+    if (lifted) {
+      sy -= 62 * sc * wf;
+      sx += Math.sin(time / 180) * 6;
+    }
 
     // 选中光环
     if (selected) {
@@ -521,9 +526,9 @@
       ctx.lineWidth = 4;
       Utils.ell(ctx, sx, sy + 3 * sc, 74 * sc * wf, 20 * sc * wf);
     }
-    // 阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    Utils.ell(ctx, sx, sy, 56 * sc * wf, 15 * sc * wf);
+    // 阴影（拎起时变淡变小，悬空感）
+    ctx.fillStyle = lifted ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.22)';
+    Utils.ell(ctx, sx, sy, lifted ? 34 * sc * wf : 56 * sc * wf, lifted ? 8 * sc * wf : 15 * sc * wf);
 
     // 身体
     Avatar.draw(ctx, pet, {
