@@ -60,7 +60,8 @@
         g3: q.g3 || '',                                 // 第 3 只性别 m/f
         g4: q.g4 || '',                                 // 第 4 只性别 m/f
         litter: q.litter !== undefined,                 // 立即安排如厕（演示）
-        bowlHr: q.bowlHr ? parseFloat(q.bowlHr) : 0     // 碗消耗时长（小时，默认 24 一天耗完）
+        bowlHr: q.bowlHr ? parseFloat(q.bowlHr) : 0,    // 碗消耗时长（小时，默认 24 一天耗完）
+        dirt: q.dirt ? parseFloat(q.dirt) : 0           // 猫砂盆初始脏度 0~100（演示）
       };
     }
 
@@ -94,6 +95,9 @@
     this.bubbles = [];      // 如厕泡泡（💧/💩）
     this.lastBreedCheck = 0;
     this.lastBreedAt = 0;   // 上次生仔时间戳（一年冷却）
+    // 第六轮：猫砂盆脏度（0~100，一天不铲约满；脏满影响精力）与铲屎
+    this.litterDirt = 0;
+    this.litterWarnAt = 0;  // 臭气警告时间戳（每天最多提示一次）
 
     this.setup = {
       catName: '咪咪',
@@ -133,7 +137,8 @@
       setupDone: this.setupDone,
       lastSavedAt: Date.now(),
       pets: this.pets.map(Pets.toJSON),
-      bowls: this.bowls
+      bowls: this.bowls,
+      litterDirt: this.litterDirt
     };
     this.P.setStorage(KEY, save);
   };
@@ -149,8 +154,9 @@
         Pets.createBuiltIn('cat', this.demo.name1 || '咪咪'),
         Pets.createBuiltIn('dog', this.demo.name2 || '旺财')
       ];
-      // 第四轮演示：碗初始为空；可指定性别 / 年龄 / 立即如厕
+      // 第四轮演示：碗初始为空；可指定性别 / 年龄 / 立即如厕 / 初始脏度
       this.bowls = { food: 0, water: 0 };
+      this.litterDirt = this.demo.dirt ? Math.min(100, this.demo.dirt) : 0;
       if (this.demo.g1) this.pets[0].gender = this.demo.g1 === 'f' ? 'female' : 'male';
       if (this.demo.g2 && this.pets[1]) this.pets[1].gender = this.demo.g2 === 'f' ? 'female' : 'male';
       if (this.demo.ageDays > 0) {
@@ -218,6 +224,8 @@
         food: (save.bowls && save.bowls.food != null) ? save.bowls.food : 100,
         water: (save.bowls && save.bowls.water != null) ? save.bowls.water : 100
       };
+      // 猫砂盆脏度（旧存档无 → 干净 0）
+      this.litterDirt = save.litterDirt != null ? Math.max(0, Math.min(100, save.litterDirt)) : 0;
       // 离线时间流逝（游戏时间 = 真实时间；碗也会随离线时间消耗）
       var delta = Math.max(0, now - (save.lastSavedAt || now));
       var br = this.bowlRate();
@@ -301,6 +309,14 @@
         this.bowls.water = Math.max(0, w0 - dt * br);
         if (w0 > 0 && this.bowls.water <= 0) this.toastMsg('水碗见底了，点一下水碗添水');
       }
+      // 猫砂盆脏度：一天自然累积约 70，加上如厕每次 +10（约一天满），需每天手动铲屎
+      if (this.litterDirt < 100) {
+        this.litterDirt = Math.min(100, this.litterDirt + dt * (70 / 86400000));
+      }
+      if (this.litterDirt >= 100 && Date.now() - this.litterWarnAt > 86400000) {
+        this.litterWarnAt = Date.now();
+        this.toastMsg('猫砂盆满啦！宠物们睡不好觉，精力消耗加速，快铲屎！');
+      }
       // 繁殖检查（约 30 秒一次；一年冷却）
       var now2 = Date.now();
       if (now2 - this.lastBreedCheck > 30000) {
@@ -356,9 +372,11 @@
         beh.manual = false;
       }
 
-      // 睡觉恢复精力（手动休息 / 精力低自动入睡都恢复）
+      // 睡觉恢复精力（手动休息 / 精力低自动入睡都恢复；猫砂盆脏满时睡不好，恢复失效）
       if (beh.state === 'sleep') {
-        pet.energy = Math.min(100, pet.energy + dt / 1000 * 15);
+        if (self.litterDirt < 100) {
+          pet.energy = Math.min(100, pet.energy + dt / 1000 * 15);
+        }
         self.zzAcc[pet.id] = (self.zzAcc[pet.id] || 0) + dt;
         if (self.zzAcc[pet.id] > 1100) {
           self.zzAcc[pet.id] = 0;
@@ -451,6 +469,8 @@
               self.toastMsg(pet.name + ' 去猫砂盆拉臭臭啦（饱食度 -10%）', 1600);
             }
             pet.nextLitterAt = now + Utils.rand(6, 10) * 3600 * 1000;
+            // 如厕让猫砂盆变脏（+10 脏度）
+            self.litterDirt = Math.min(100, (self.litterDirt || 0) + 10);
             beh.state = 'idle'; beh.t = Utils.rand(1, 3);
           }
           break;
@@ -1022,7 +1042,8 @@
         '· 宠物每天约去 3 次猫砂盆：尿尿渴度 -10%，拉臭饱食度 -10%',
         '· 体重每年约涨 3 斤，体型会跟着变大',
         '· 同种一公一母养满一年，会生一窝 1~4 只小宝宝',
-        '· 抚摸：点按或滑动宠物，它会很开心'
+        '· 抚摸：点按或滑动宠物，它会很开心',
+        '· 铲屎：点一下猫砂盆清理，不铲的话宠物睡不好觉，三天精力就会耗尽',
       ],
       buttons: [
         { label: '知道了', onTap: function () { self.closeModal(); } }
@@ -1088,6 +1109,11 @@
       this.dragPetId = pet.id;
       this.petCareAcc[pet.id] = 0;
       this.pet(pet);
+      return;
+    }
+    // 猫砂盆：点击铲屎
+    if (this.litterAt(x, y)) {
+      this.scoopLitter();
       return;
     }
     // 碗：点击添粮 / 添水
@@ -1224,6 +1250,25 @@
       if (dx * dx + dy * dy < r * r) return spots[i].kind;
     }
     return null;
+  };
+
+  // 猫砂盆命中：点击铲屎
+  Game.prototype.litterAt = function (x, y) {
+    var p = Render.project(LAYOUT.litter.fx, LAYOUT.litter.fz);
+    var dx = x - p.x, dy = y - p.y;
+    var r = 125 * p.sc;
+    return dx * dx + dy * dy < r * r;
+  };
+
+  // 铲屎：把猫砂盆清理干净
+  Game.prototype.scoopLitter = function () {
+    if (this.litterDirt <= 0) {
+      this.toastMsg('猫砂盆很干净，暂时不用铲');
+      return;
+    }
+    this.litterDirt = 0;
+    this.save();
+    this.toastMsg('铲屎完成！猫砂盆干净啦');
   };
 
   // 设置界面
@@ -1376,8 +1421,8 @@
     Render.drawBowl(ctx, f.x, f.y, f.sc, 'food', this.bowls.food);
     var w = Render.project(LAYOUT.water.fx, LAYOUT.water.fz);
     Render.drawBowl(ctx, w.x, w.y, w.sc, 'water', this.bowls.water);
-    // 猫砂盆
-    Render.drawLitter(ctx, t);
+    // 猫砂盆（带脏度：铲屎玩法）
+    Render.drawLitter(ctx, t, this.litterDirt);
 
     // 窝（数量 = 对应宠物数量）与足球
     for (var ni = 0; ni < this.nests.length; ni++) {
