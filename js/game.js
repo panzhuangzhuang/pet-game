@@ -61,7 +61,8 @@
         g4: q.g4 || '',                                 // 第 4 只性别 m/f
         litter: q.litter !== undefined,                 // 立即安排如厕（演示）
         bowlHr: q.bowlHr ? parseFloat(q.bowlHr) : 0,    // 碗消耗时长（小时，默认 24 一天耗完）
-        dirt: q.dirt ? parseFloat(q.dirt) : 0           // 猫砂盆初始脏度 0~100（演示）
+        dirt: q.dirt ? parseFloat(q.dirt) : 0,          // 猫砂盆初始脏度 0~100（演示）
+        admin: q.admin !== undefined                    // 打开后台面板（演示）
       };
     }
 
@@ -218,6 +219,7 @@
       this.lastSavedAt = now;
       this.loadPhotoTextures();
       this.rebuildNests();
+      if (this.demo.admin) this.openAdmin();
       return;
     }
 
@@ -1092,6 +1094,11 @@
       this.chipScrollBy(nav === 'left' ? -1 : 1);
       return;
     }
+    // 后台齿轮（右上角）
+    if (x >= 666 && x <= 738 && y >= 12 && y <= 84) {
+      this.openAdmin();
+      return;
+    }
     // 状态卡
     var chip = this.chipAt(x, y);
     if (chip) {
@@ -1276,6 +1283,59 @@
     this.toastMsg('铲屎完成！猫砂盆干净啦');
   };
 
+  // ---------------- 后台：时间快进 ----------------
+  Game.prototype.maxAgeDays = function () {
+    var now = Date.now(), mx = 0;
+    this.pets.forEach(function (p) {
+      var d = Math.max(0, Math.floor((now - p.createdAt) / 86400000));
+      if (d > mx) mx = d;
+    });
+    return mx;
+  };
+
+  // 快进时间（视为正常照料：宠物不饿死、体重随年龄涨、满一年公母自动生小猫）
+  Game.prototype.advanceTime = function (ms) {
+    var now = Date.now();
+    var self = this;
+    this.pets.forEach(function (p) { p.createdAt -= ms; });
+    this.pets.forEach(function (p) {
+      if (p.alive) p.nextLitterAt = now + Utils.rand(2, 8) * 3600 * 1000;
+    });
+    var pair = this.checkBreeding(now);
+    if (pair) this.doBreed(pair, now);
+    this.lastBreedCheck = now;
+    this.rebuildNests();
+    this.save();
+    this.toastMsg('时间快进 ' + Math.round(ms / 86400000) + ' 天，宠物们长大啦');
+    return !!pair;
+  };
+
+  Game.prototype.openAdmin = function () {
+    var self = this;
+    var days = this.maxAgeDays();
+    this.modal = {
+      title: '后台 · 时间快进',
+      lines: [
+        '年龄最大的宠物：' + days + ' 天',
+        '快进视为正常照料：宠物不会饿死，',
+        '体重会涨，满一年的公母会自动生小猫'
+      ],
+      rows: [
+        [
+          { label: '+1 天', onTap: function () { if (!self.advanceTime(86400000)) self.openAdmin(); } },
+          { label: '+7 天', onTap: function () { if (!self.advanceTime(7 * 86400000)) self.openAdmin(); } }
+        ],
+        [
+          { label: '+30 天', onTap: function () { if (!self.advanceTime(30 * 86400000)) self.openAdmin(); } },
+          { label: '+365 天', onTap: function () { if (!self.advanceTime(365 * 86400000)) self.openAdmin(); } }
+        ],
+        [
+          { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
+        ]
+      ]
+    };
+  };
+
   // 设置界面
   Game.prototype.setupHit = function (x, y) {
     var s = this.setup;
@@ -1420,6 +1480,7 @@
     }
     if (this.modal) Render.drawModal(ctx, this.modal);
     Render.drawToast(ctx, this.toast);
+    if (this.screen === 'main') Render.drawAdminGear(ctx);
   };
 
   Game.prototype.renderMain = function (ctx) {
