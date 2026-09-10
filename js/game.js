@@ -79,6 +79,10 @@
     this.pressY = 0;
     this.dragPetId = null;
     this.dragChip = false;
+    // 拎起拖拽：按住宠物拖动可放到其他位置
+    this.petLiftId = null;
+    this.petLiftStart = null;
+    this.petLiftActive = false;
     this.lastChipTap = null;
     this.chipScroll = 0;
     this.autoSaveAcc = 0;
@@ -439,6 +443,8 @@
     var now = Date.now();
     this.pets.forEach(function (pet) {
       if (!pet.alive) return;
+      // 被拎起的宠物：不更新行为（位置由拖拽控制）
+      if (self.petLiftActive && pet.id === self.petLiftId) return;
       Pets.update(pet, dt);
       var beh = pet.beh;
 
@@ -1231,13 +1237,17 @@
       this.dragChip = true;
       return;
     }
-    // 宠物（抚摸 / 选中）
+    // 宠物（抚摸 / 选中 / 按住可拎起拖拽）
     var pet = this.petAt(x, y);
     if (pet) {
       this.selectedId = pet.id;
       this.dragPetId = pet.id;
       this.petCareAcc[pet.id] = 0;
       this.pet(pet);
+      // 记录拎起拖拽起点（按住后拖动超过阈值即拎起，松手放下）
+      this.petLiftId = pet.id;
+      this.petLiftStart = { sx: sx, sy: sy };
+      this.petLiftActive = false;
       return;
     }
     // 猫砂盆：点击铲屎
@@ -1269,6 +1279,22 @@
     var v = this.toVirtual(sx, sy);
     var x = v.x, y = v.y;
     if (this.screen !== 'main') return;
+    // 拎起拖拽：按住宠物拖动 → 拎起跟随手指
+    if (this.dragPetId && this.petLiftId) {
+      var liftPet = this.petById(this.petLiftId);
+      if (liftPet && liftPet.alive) {
+        if (!this.petLiftActive) {
+          var dsx = sx - this.petLiftStart.sx, dsy = sy - this.petLiftStart.sy;
+          if (dsx * dsx + dsy * dsy > 18 * 18) this.petLiftActive = true;
+        }
+        if (this.petLiftActive) {
+          var fx = (x - 50) / 650, fz = (y - 560) / 612;
+          liftPet.x = Utils.clamp(fx, 0.08, 0.92);
+          liftPet.z = Utils.clamp(fz, 0.08, 0.90);
+          return; // 拎起时不做抚摸
+        }
+      }
+    }
     if (this.dragChip) {
       this.chipScroll = Utils.clamp(this.chipScroll + (this.pressX - x), 0, this.chipMax());
       this.pressX = x;
@@ -1305,6 +1331,10 @@
     this.pressedId = null;
     this.dragPetId = null;
     this.dragChip = false;
+    // 松手放下（拎起状态清理，宠物停留在当前位置）
+    this.petLiftId = null;
+    this.petLiftStart = null;
+    this.petLiftActive = false;
   };
 
   Game.prototype.doAction = function (id) {
@@ -1923,7 +1953,7 @@
         Render.drawTombstone(ctx, pet, t);
       } else {
         aliveCount++;
-        Render.drawPet(ctx, pet, t, pet.id === this.selectedId, this.time);
+        Render.drawPet(ctx, pet, t, pet.id === this.selectedId, this.time, this.petLiftActive && pet.id === this.petLiftId);
       }
     }
 
