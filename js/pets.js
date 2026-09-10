@@ -30,8 +30,34 @@
   };
 
   Pets.SPECIES = {
-    cat: { label: '小猫', colors: { body: '#f2a03d', stripe: '#cf7f26', belly: '#ffe8c9', ear: '#f7b35c', earIn: '#f5b9c4' } },
-    dog: { label: '小狗', colors: { body: '#c9935f', stripe: '#a06f3e', belly: '#f4e2c8', ear: '#a06f3e', earIn: '#e8b49c' } }
+    cat: {
+      label: '小猫', short: '猫', baby: '小猫', desc: '一只黏人的小猫咪',
+      colors: { body: '#f2a03d', stripe: '#cf7f26', belly: '#ffe8c9', ear: '#f7b35c', earIn: '#f5b9c4' }
+    },
+    dog: {
+      label: '小狗', short: '狗', baby: '小狗', desc: '一只活泼的小狗狗',
+      colors: { body: '#c9935f', stripe: '#a06f3e', belly: '#f4e2c8', ear: '#a06f3e', earIn: '#e8b49c' }
+    },
+    pig: {
+      label: '小猪', short: '猪', baby: '猪崽', desc: '一只粉嫩的小猪猪',
+      colors: { body: '#f7a8b8', stripe: '#ef8ba0', belly: '#fde6ec', ear: '#f493a7', earIn: '#f9c6d2' }
+    },
+    cow: {
+      label: '小牛', short: '牛', baby: '牛犊', desc: '一只哞哞的小奶牛',
+      colors: { body: '#f2ece2', stripe: '#6e5a4a', belly: '#fbf5ec', ear: '#c79a6b', earIn: '#ecd9c2' }
+    },
+    sheep: {
+      label: '小羊', short: '羊', baby: '羊羔', desc: '一只软软的小绵羊',
+      colors: { body: '#efe9df', stripe: '#d9d0c0', belly: '#faf6ef', ear: '#e0d6c6', earIn: '#f0e8dc' }
+    },
+    chick: {
+      label: '小鸡', short: '鸡', baby: '鸡仔', desc: '一只叽叽的小鸡仔',
+      colors: { body: '#ffd94d', stripe: '#f0b72e', belly: '#fff2bd', ear: '#ffcf3f', earIn: '#ffe89a' }
+    }
+  };
+  Pets.SPECIES_ORDER = ['cat', 'dog', 'pig', 'cow', 'sheep', 'chick'];
+  Pets.speciesLabel = function (sp) {
+    return (Pets.SPECIES[sp] && Pets.SPECIES[sp].label) || '照片伙伴';
   };
 
   function freshBeh() {
@@ -71,12 +97,12 @@
     var pet = freshBody(Utils.rand(0.25, 0.75), Utils.rand(0.35, 0.75));
     pet.id = Utils.makeId('pet');
     pet.name = (name && String(name).trim()) || '我的宠物';
-    pet.species = 'custom';
+    pet.species = Pets.SPECIES[species] ? species : 'custom';
     pet.avatar = {
       type: 'photo',
       dataURL: dataURL,
       colors: colors,
-      ears: 'round',
+      ears: Pets.SPECIES[species] ? species : 'round',
       texture: null
     };
     return pet;
