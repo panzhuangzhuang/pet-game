@@ -689,20 +689,22 @@
     });
 
     // 宠物互相避让：防止叠在一起（在所有行为状态后统一推开）
+    // 休息/睡觉中的宠物原地不动（当障碍物），只推开走动的宠物
     var list = this.pets.filter(function (p) { return p.alive; });
     for (var i = 0; i < list.length; i++) {
       for (var j = i + 1; j < list.length; j++) {
         var a = list[i], b = list[j];
+        var aFixed = a.beh.state === 'rest' || a.beh.state === 'sleep';
+        var bFixed = b.beh.state === 'rest' || b.beh.state === 'sleep';
+        if (aFixed && bFixed) continue;
         var ddx = b.x - a.x, ddz = b.z - a.z;
         var d = Math.sqrt(ddx * ddx + ddz * ddz);
         var minD = 0.15;
         if (d > 0.0001 && d < minD) {
           var push = (minD - d) / 2;
           var nx = ddx / d, nz = ddz / d;
-          a.x -= nx * push;
-          a.z -= nz * push;
-          b.x += nx * push;
-          b.z += nz * push;
+          if (!aFixed) { a.x -= nx * push; a.z -= nz * push; }
+          if (!bFixed) { b.x += nx * push; b.z += nz * push; }
         }
       }
     }
