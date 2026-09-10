@@ -958,7 +958,7 @@
     if (ph) {
       var previewPet = {
         species: 'custom',
-        avatar: { type: 'photo', colors: ph.colors, ears: game.addpet.species === 'cat' ? 'cat' : (game.addpet.species === 'dog' ? 'dog' : 'round'), texture: ph.texture }
+        avatar: { type: 'photo', colors: ph.colors, ears: 'round', texture: ph.texture }
       };
       Avatar.draw(ctx, previewPet, { x: 375, y: 775, s: 210, t: game.time / 1000, pose: 'happy', facing: 1 });
     } else {
@@ -985,17 +985,6 @@
       Utils.roundRect(ctx, gb.x, gb.y, gb.w, gb.h, 14, gsel ? (gb.value === 'male' ? '#5a8fd0' : '#e76a9a') : 'rgba(255,255,255,0.9)',
         gsel ? (gb.value === 'male' ? '#5a8fd0' : '#e76a9a') : '#d9b98c');
       Utils.drawText(ctx, gb.label, gb.x + gb.w / 2, gb.y + gb.h / 2, { size: 24, weight: 'bold', color: gsel ? '#fff' : '#8a5a33' });
-    }
-
-    // 物种
-    Utils.drawText(ctx, '耳朵款式', 300, 992, { size: 22, color: '#a0805a' });
-    var sps = game.addpet.speciesBtns;
-    for (var i = 0; i < sps.length; i++) {
-      var sp = sps[i];
-      var sel = game.addpet.species === sp.value;
-      Utils.roundRect(ctx, sp.x, sp.y, sp.w, sp.h, 14, sel ? '#ff8f3f' : 'rgba(255,255,255,0.9)',
-        sel ? '#ff8f3f' : '#d9b98c');
-      Utils.drawText(ctx, sp.label, sp.x + sp.w / 2, sp.y + sp.h / 2, { size: 24, weight: 'bold', color: sel ? '#fff' : '#8a5a33' });
     }
 
     // 确认
