@@ -115,7 +115,6 @@
     this.addpet = {
       photo: null,
       name: '',
-      species: 'cat',
       gender: null,                                  // 领养时手动选公母；null = 随机
       backBtn: { x: 20, y: 40, w: 130, h: 62 },
       photoArea: { x: 125, y: 175, w: 500, h: 400 },
@@ -125,14 +124,9 @@
         { value: 'male', label: '♂ 公', x: 165, y: 922, w: 205, h: 54 },
         { value: 'female', label: '♀ 母', x: 390, y: 922, w: 205, h: 54 }
       ],
-      speciesBtns: [
-        { value: 'cat', label: '小猫', x: 175, y: 1014, w: 120, h: 62 },
-        { value: 'dog', label: '小狗', x: 315, y: 1014, w: 120, h: 62 },
-        { value: 'custom', label: '其他', x: 455, y: 1014, w: 120, h: 62 }
-      ],
-      confirmBtn: { x: 150, y: 1100, w: 450, h: 100 },
-      quickCatBtn: { x: 150, y: 1218, w: 205, h: 58 },
-      quickDogBtn: { x: 375, y: 1218, w: 205, h: 58 }
+      confirmBtn: { x: 150, y: 1014, w: 450, h: 100 },
+      quickCatBtn: { x: 150, y: 1144, w: 205, h: 58 },
+      quickDogBtn: { x: 375, y: 1144, w: 205, h: 58 }
     };
   };
 
@@ -1050,7 +1044,8 @@
         '· 粮碗水碗初始是空的，点一下碗就能添粮 / 添水',
         '· 宠物每天约去 3 次猫砂盆：尿尿渴度 -10%，拉臭饱食度 -10%',
         '· 体重每年约涨 3 斤，体型会跟着变大',
-        '· 同种一公一母养满一年，会生一窝 1~4 只小宝宝',
+        '· 同种一公一母养满一年，可到后台点"配对生育"手动配对',
+        '· 照片领养的伙伴是独一无二的定制宠物，不参与繁殖',
         '· 抚摸：点按或滑动宠物，它会很开心',
         '· 铲屎：点一下猫砂盆清理，不铲的话宠物睡不好觉，三天精力就会耗尽',
         '· 版本 v10 · 更新缓存后请重开页面'
@@ -1506,9 +1501,6 @@
     for (var i = 0; i < a.genderBtns.length; i++) {
       if (inRect(x, y, a.genderBtns[i])) { a.gender = a.genderBtns[i].value; return; }
     }
-    for (var i = 0; i < a.speciesBtns.length; i++) {
-      if (inRect(x, y, a.speciesBtns[i])) { a.species = a.speciesBtns[i].value; return; }
-    }
     if (inRect(x, y, a.confirmBtn)) {
       this.pressedId = 'addpet_ok';
       this.confirmAdd();
@@ -1554,7 +1546,7 @@
     if (!a.photo) { this.toastMsg('请先选择一张照片'); return; }
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
     var name = (a.name || '').trim() || '我的宠物';
-    var pet = Pets.createFromPhoto(name, a.species, a.photo.dataURL, a.photo.colors);
+    var pet = Pets.createFromPhoto(name, 'custom', a.photo.dataURL, a.photo.colors);
     pet.avatar.texture = a.photo.texture;
     if (a.gender) pet.gender = a.gender;              // 领养时手动选的性别
     this.pets.push(pet);
