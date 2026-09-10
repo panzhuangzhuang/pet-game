@@ -627,12 +627,12 @@
       Utils.drawText(ctx, Pets_weightKg(pet).toFixed(1) + ' 斤', nX + 14, y + 42, { size: 13, align: 'left', color: '#a0805a' });
       // 情绪脸（右上）
       drawMiniFace(ctx, x + w - 16, y + 22, Pets_mood(pet));
-      // 三条状态条横排底部
-      var barW = (w - 24) / 3;
+      // 三条状态条横排底部（条内显示百分比）
+      var barW = (w - 16) / 3;
       var by = y + h - 14;
-      drawStatusRow(ctx, x + 6, by, barW - 6, pet.hunger, 'feed', '#ff9d4d', true);
-      drawStatusRow(ctx, x + 8 + barW, by, barW - 6, pet.thirst, 'water', '#4aa8e0', true);
-      drawStatusRow(ctx, x + 10 + barW * 2, by, barW - 6, pet.energy, 'rest', '#ffd34d', true);
+      drawStatusRow(ctx, x + 4, by, barW - 6, pet.hunger, 'feed', '#ff9d4d', true);
+      drawStatusRow(ctx, x + 4 + barW, by, barW - 6, pet.thirst, 'water', '#4aa8e0', true);
+      drawStatusRow(ctx, x + 4 + barW * 2, by, barW - 6, pet.energy, 'rest', '#ffd34d', true);
       return;
     }
     // ===== 单行模式：完整卡 =====
@@ -704,15 +704,15 @@
 
   function drawStatusRow(ctx, x, cy, barW, val, icon, color, mini) {
     if (mini) {
-      // 紧凑模式：小图标 + 细条（不显示百分比，两行卡空间有限）
-      drawIcon(ctx, icon, x + 6, cy, color);
-      var mbx = x + 14, mbw = Math.max(6, barW - 8);
+      // 紧凑模式：细条 + 条内白色百分比（两行卡空间有限，不加图标）
+      var mbx = x, mbw = barW;
       ctx.fillStyle = 'rgba(0,0,0,0.08)';
-      Utils.roundRect(ctx, mbx, cy - 3, mbw, 6, 3);
+      Utils.roundRect(ctx, mbx, cy - 3, mbw, 7, 3.5);
       if (val > 0) {
         ctx.fillStyle = color;
-        Utils.roundRect(ctx, mbx, cy - 3, Math.max(3, mbw * val / 100), 6, 3);
+        Utils.roundRect(ctx, mbx, cy - 3, Math.max(3, mbw * val / 100), 7, 3.5);
       }
+      Utils.drawText(ctx, Math.round(val) + '%', mbx + mbw / 2, cy + 2, { size: 9, weight: 'bold', align: 'center', color: '#fff' });
       return;
     }
     drawIcon(ctx, icon, x + 9, cy, color);
@@ -1139,8 +1139,8 @@
 
   // ---------- 后台齿轮（右上角入口） ----------
   function drawAdminGear(ctx) {
-    // 房间入口（🏠，⚙ 左边）
-    var rx = 628, ry = 48, rr = 30;
+    // 房间入口（🏠，⚙ 左边）——缩小上移，避免与状态卡重叠
+    var rx = 628, ry = 32, rr = 20;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.strokeStyle = '#d9b98c';
     ctx.lineWidth = 2;
@@ -1148,9 +1148,9 @@
     ctx.arc(rx, ry, rr, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    Utils.drawText(ctx, '🏠', rx, ry + 2, { size: 26, color: '#8a5a33' });
+    Utils.drawText(ctx, '🏠', rx, ry + 1, { size: 20, color: '#8a5a33' });
     // 后台齿轮
-    var gx = 702, gy = 48, gr = 30;
+    var gx = 702, gy = 32, gr = 20;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.strokeStyle = '#d9b98c';
     ctx.lineWidth = 2;
@@ -1159,7 +1159,7 @@
     ctx.fill();
     ctx.stroke();
     // 齿轮符号
-    Utils.drawText(ctx, '⚙', gx, gy + 2, { size: 32, color: '#8a5a33' });
+    Utils.drawText(ctx, '⚙', gx, gy + 1, { size: 24, color: '#8a5a33' });
   }
 
   // ---------- 房间面板（最多 3 个房间） ----------
