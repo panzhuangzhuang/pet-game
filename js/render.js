@@ -976,8 +976,19 @@
       { size: 27, align: 'left', color: game.addpet.name ? '#6b4a35' : '#c9b28f' });
     Utils.drawText(ctx, '✎', nb.x + nb.w - 30, nb.y + nb.h / 2, { size: 22, color: '#d9a05f' });
 
+    // 性别（领养时手动选；不选则随机）
+    Utils.drawText(ctx, '性别（不选就随机）', 300, 896, { size: 22, color: '#a0805a' });
+    var gbs = game.addpet.genderBtns;
+    for (var gi = 0; gi < gbs.length; gi++) {
+      var gb = gbs[gi];
+      var gsel = game.addpet.gender === gb.value;
+      Utils.roundRect(ctx, gb.x, gb.y, gb.w, gb.h, 14, gsel ? (gb.value === 'male' ? '#5a8fd0' : '#e76a9a') : 'rgba(255,255,255,0.9)',
+        gsel ? (gb.value === 'male' ? '#5a8fd0' : '#e76a9a') : '#d9b98c');
+      Utils.drawText(ctx, gb.label, gb.x + gb.w / 2, gb.y + gb.h / 2, { size: 24, weight: 'bold', color: gsel ? '#fff' : '#8a5a33' });
+    }
+
     // 物种
-    Utils.drawText(ctx, '耳朵款式', 300, 966, { size: 22, color: '#a0805a' });
+    Utils.drawText(ctx, '耳朵款式', 300, 992, { size: 22, color: '#a0805a' });
     var sps = game.addpet.speciesBtns;
     for (var i = 0; i < sps.length; i++) {
       var sp = sps[i];
