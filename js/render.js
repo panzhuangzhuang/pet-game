@@ -1017,14 +1017,20 @@
 
   // 弹窗按钮位置（绘制与命中检测共用）
   function modalButtonRects(modal) {
-    var cw = 560, ch = 120 + modal.lines.length * 44 + 100;
+    var rows = modal.rows ? (modal.buttons ? modal.rows.concat([modal.buttons]) : modal.rows) : [modal.buttons];
+    var nRows = rows.length;
+    var cw = 560, ch = 120 + modal.lines.length * 44 + nRows * 86 + 10;
     var cx = (W - cw) / 2, cy = (H - ch) / 2;
-    var n = modal.buttons.length;
     var gap = 16;
-    var bw = (cw - 48 - (n - 1) * gap) / n;
     var rects = [];
-    for (var b = 0; b < n; b++) {
-      rects.push({ x: cx + 24 + b * (bw + gap), y: cy + ch - 92, w: bw, h: 70, btn: modal.buttons[b] });
+    for (var r = 0; r < nRows; r++) {
+      var btns = rows[r];
+      var n = btns.length;
+      var bw = (cw - 48 - (n - 1) * gap) / n;
+      var by = cy + ch - 14 - (nRows - r) * 86;
+      for (var b = 0; b < n; b++) {
+        rects.push({ x: cx + 24 + b * (bw + gap), y: by, w: bw, h: 70, btn: btns[b] });
+      }
     }
     return rects;
   }
@@ -1033,7 +1039,9 @@
   function drawModal(ctx, modal) {
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(0, 0, W, H);
-    var cw = 560, ch = 120 + modal.lines.length * 44 + 100;
+    var rows = modal.rows ? (modal.buttons ? modal.rows.concat([modal.buttons]) : modal.rows) : [modal.buttons];
+    var nRows = rows.length;
+    var cw = 560, ch = 120 + modal.lines.length * 44 + nRows * 86 + 10;
     var cx = (W - cw) / 2, cy = (H - ch) / 2;
     Utils.roundRect(ctx, cx, cy, cw, ch, 24, '#fffdf7');
     Utils.drawText(ctx, modal.title, W / 2, cy + 56, { size: 32, weight: 'bold', color: '#6b4a35' });
@@ -1063,6 +1071,20 @@
     ctx.globalAlpha = 1;
   }
 
+  // ---------- 后台齿轮（右上角入口） ----------
+  function drawAdminGear(ctx) {
+    var gx = 702, gy = 48, gr = 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeStyle = '#d9b98c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // 齿轮符号
+    Utils.drawText(ctx, '⚙', gx, gy + 2, { size: 32, color: '#8a5a33' });
+  }
+
   // 供 game 使用
   var Render = {
     LAYOUT: LAYOUT,
@@ -1073,6 +1095,7 @@
     drawNest: drawNest,
     drawBall: drawBall,
     drawLitter: drawLitter,
+    drawAdminGear: drawAdminGear,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
