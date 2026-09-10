@@ -324,12 +324,14 @@
         this.litterWarnAt = Date.now();
         this.toastMsg('猫砂盆满啦！宠物们睡不好觉，精力消耗加速，快铲屎！');
       }
-      // 繁殖检查（约 30 秒一次；一年冷却）
+      // 繁殖检查（约 30 秒一次；仅演示模式自动生，正常模式改为后台手动配对）
       var now2 = Date.now();
       if (now2 - this.lastBreedCheck > 30000) {
         this.lastBreedCheck = now2;
-        var pair = this.checkBreeding(now2);
-        if (pair) this.doBreed(pair, now2);
+        if (this.demo) {
+          var pair = this.checkBreeding(now2);
+          if (pair) this.doBreed(pair, now2);
+        }
       }
       // 足球滚动物理
       var b = this.ball;
@@ -1304,11 +1306,10 @@
     this.pets.forEach(function (p) {
       if (p.alive) p.nextLitterAt = now + Utils.rand(2, 8) * 3600 * 1000;
     });
-    var pair = this.checkBreeding(now);
+    var cands = this.breedCandidates(now);
     var dayN = Math.round(ms / 86400000);
-    if (pair) {
-      this.doBreed(pair, now);
-      this.toastMsg('时间快进 ' + dayN + ' 天，宠物们长大啦');
+    if (cands.length) {
+      this.toastMsg('快进 ' + dayN + ' 天！可去后台手动配对生小猫啦');
     } else {
       var st = this.breedStatus();
       this.toastMsg(st.length ? '没生小猫：' + st[0] : '时间快进 ' + dayN + ' 天，宠物们长大啦');
@@ -1316,7 +1317,7 @@
     this.lastBreedCheck = now;
     this.rebuildNests();
     this.save();
-    return !!pair;
+    return cands.length > 0;
   };
 
   // 繁殖状态诊断：告诉玩家当前为什么能生 / 为什么还不能生
@@ -1344,9 +1345,65 @@
       var need = 365 - ageDays, coolNeed = 365 - coolDays;
       if (need > 0) out.push(name + '：年龄还差 ' + need + ' 天才满一年');
       else if (coolNeed > 0) out.push(name + '：上次生产后冷却还剩 ' + coolNeed + ' 天');
-      else out.push(name + '：已可生，+365 天即生一窝');
+      else out.push(name + '：已满一年，可点"配对生育"手动配对');
     });
     return out;
+  };
+
+  // 手动配对的候选：满一年、同种一公一母、冷却已满的全部组合
+  Game.prototype.breedCandidates = function (now) {
+    var out = [], self = this;
+    ['cat', 'dog'].forEach(function (sp) {
+      var ms = [], fs = [];
+      self.pets.forEach(function (p) {
+        if (!p.alive || p.species !== sp) return;
+        if (p.gender === 'male') ms.push(p);
+        else if (p.gender === 'female') fs.push(p);
+      });
+      ms.forEach(function (m) {
+        fs.forEach(function (f) {
+          var born = Math.min(m.createdAt, f.createdAt);
+          if (now - born < 365 * 86400000) return;
+          if (now - self.lastBreedAt < 365 * 86400000) return;
+          out.push({ m: m, f: f, sp: sp });
+        });
+      });
+    });
+    return out;
+  };
+
+  // 手动配对弹窗：列出所有可用配对，点一组生一窝
+  Game.prototype.openBreed = function () {
+    var self = this;
+    var cands = this.breedCandidates(Date.now());
+    var many = cands.length > 8;
+    if (many) cands = cands.slice(0, 8);
+    var lines = ['满一年的公母可以手动配对，点一组就生一窝'];
+    if (!cands.length) lines.push('暂无可用配对（原因请看上方诊断）');
+    else if (many) lines.push('配对较多，已显示前 8 组');
+    var rows = [];
+    for (var i = 0; i < cands.length; i++) {
+      (function (pair) {
+        rows.push([
+          {
+            label: pair.m.name.slice(0, 4) + '♂ × ' + pair.f.name.slice(0, 4) + '♀',
+            onTap: function () {
+              self.doBreed(pair, Date.now());
+              self.lastBreedCheck = Date.now();
+              self.save();
+            }
+          }
+        ]);
+      })(cands[i]);
+    }
+    this.modal = {
+      title: '配对生育',
+      lines: lines,
+      rows: rows,
+      buttons: [
+        { label: '返回', style: 'ghost', onTap: function () { self.openAdmin(); } }
+      ]
+    };
   };
 
   Game.prototype.openAdmin = function () {
@@ -1364,14 +1421,15 @@
       lines: lines,
       rows: [
         [
-          { label: '+1 天', onTap: function () { if (!self.advanceTime(86400000)) self.openAdmin(); } },
-          { label: '+7 天', onTap: function () { if (!self.advanceTime(7 * 86400000)) self.openAdmin(); } }
+          { label: '+1 天', onTap: function () { self.advanceTime(86400000); self.openAdmin(); } },
+          { label: '+7 天', onTap: function () { self.advanceTime(7 * 86400000); self.openAdmin(); } }
         ],
         [
-          { label: '+30 天', onTap: function () { if (!self.advanceTime(30 * 86400000)) self.openAdmin(); } },
-          { label: '+365 天', onTap: function () { if (!self.advanceTime(365 * 86400000)) self.openAdmin(); } }
+          { label: '+30 天', onTap: function () { self.advanceTime(30 * 86400000); self.openAdmin(); } },
+          { label: '+365 天', onTap: function () { self.advanceTime(365 * 86400000); self.openAdmin(); } }
         ],
         [
+          { label: '配对生育', onTap: function () { self.openBreed(); } },
           { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
         ]
       ]
