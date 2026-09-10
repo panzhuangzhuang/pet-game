@@ -1,0 +1,1021 @@
+/**
+ * render.js — 场景渲染（Canvas 2D 伪 3D 小屋）
+ * 负责：小屋（后墙/地板/窗户/挂画/地毯）、水碗粮碗、宠物与墓碑、
+ *       顶部状态卡、底部操作栏、设置/领养界面、弹窗与气泡。
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./utils.js'), require('./avatar.js'));
+  } else {
+    root.PG = root.PG || {};
+    root.PG.Render = factory(root.PG.Utils, root.PG.Avatar);
+  }
+})(typeof self !== 'undefined' ? self : this, function (Utils, Avatar) {
+  'use strict';
+
+  var W = 750, H = 1334;
+
+  var LAYOUT = {
+    W: W, H: H,
+    chipY: 44, chipH: 154, chipW: 216, chipGap: 12, chipX0: 20, chipScrollMax: 0,
+    wallTop: 200,
+    backWall: { x: 50, y: 200, w: 650, h: 360 },
+    floorTop: 560, floorBottom: 1172,
+    food: { fx: 0.30, fz: 0.60 },
+    water: { fx: 0.70, fz: 0.68 },
+    litter: { fx: 0.86, fz: 0.28 },
+    barTop: 1202, barH: 132,
+    buttons: [
+      { id: 'feed', x: 20, y: 1218, w: 140, h: 96, label: '喂食' },
+      { id: 'water', x: 172, y: 1218, w: 140, h: 96, label: '喝水' },
+      { id: 'rest', x: 324, y: 1218, w: 140, h: 96, label: '休息' },
+      { id: 'add', x: 476, y: 1218, w: 122, h: 96, label: '添加' },
+      { id: 'help', x: 610, y: 1218, w: 120, h: 96, label: '帮助' }
+    ]
+  };
+
+  // 地板坐标 -> 屏幕坐标
+  function project(fx, fz) {
+    var x = 50 + fx * 650;
+    var y = 560 + fz * 612;
+    var sc = 0.45 + fz * 0.55;
+    return { x: x, y: y, sc: sc };
+  }
+
+  // ---------- 小屋 ----------
+  function drawRoom(ctx, t) {
+    // 整体背景
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fff6e6');
+    bg.addColorStop(1, '#ffe9cf');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // 后墙
+    ctx.fillStyle = '#f6e3c2';
+    ctx.fillRect(LAYOUT.backWall.x, LAYOUT.backWall.y, LAYOUT.backWall.w, LAYOUT.backWall.h);
+    // 墙纸条纹
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (var x = LAYOUT.backWall.x + 40; x < LAYOUT.backWall.x + LAYOUT.backWall.w; x += 80) {
+      ctx.fillRect(x, LAYOUT.backWall.y, 26, LAYOUT.backWall.h);
+    }
+    // 踢脚线
+    ctx.fillStyle = '#d9b98c';
+    ctx.fillRect(LAYOUT.backWall.x, LAYOUT.backWall.y + LAYOUT.backWall.h - 14, LAYOUT.backWall.w, 14);
+
+    // 窗户
+    var wx = 150, wy = 250, ww = 190, wh = 180;
+    Utils.roundRect(ctx, wx - 10, wy - 10, ww + 20, wh + 20, 10, '#ffffff', '#c9a86a');
+    var sky = ctx.createLinearGradient(0, wy, 0, wy + wh);
+    sky.addColorStop(0, '#a8dcf5');
+    sky.addColorStop(1, '#e3f4fd');
+    ctx.fillStyle = sky;
+    ctx.fillRect(wx, wy, ww, wh);
+    // 太阳
+    ctx.fillStyle = '#ffd76a';
+    Utils.ell(ctx, wx + ww - 34, wy + 34, 20, 20);
+    // 云
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    Utils.ell(ctx, wx + 50, wy + 52, 30, 14);
+    Utils.ell(ctx, wx + 80, wy + 46, 22, 12);
+    // 窗框
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh);
+    ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2);
+    ctx.stroke();
+
+    // 挂画
+    var px = 505, py = 265, pw = 130, ph = 110;
+    Utils.roundRect(ctx, px - 8, py - 8, pw + 16, ph + 16, 8, '#8a5a33');
+    ctx.fillStyle = '#fdf6e8';
+    ctx.fillRect(px, py, pw, ph);
+    // 画里的风景
+    ctx.fillStyle = '#a8dcf5';
+    ctx.fillRect(px, py, pw, 40);
+    ctx.fillStyle = '#7cc576';
+    ctx.beginPath();
+    ctx.moveTo(px, py + 70); ctx.quadraticCurveTo(px + pw / 2, py + 30, px + pw, py + 70);
+    ctx.lineTo(px + pw, py + ph); ctx.lineTo(px, py + ph);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffd76a';
+    Utils.ell(ctx, px + 100, py + 24, 12, 12);
+
+    // 地板（梯形透视）
+    var floorG = ctx.createLinearGradient(0, LAYOUT.floorTop, 0, LAYOUT.floorBottom);
+    floorG.addColorStop(0, '#eec98f');
+    floorG.addColorStop(1, '#d9a75f');
+    ctx.fillStyle = floorG;
+    ctx.beginPath();
+    ctx.moveTo(LAYOUT.backWall.x, LAYOUT.floorTop);
+    ctx.lineTo(LAYOUT.backWall.x + LAYOUT.backWall.w, LAYOUT.floorTop);
+    ctx.lineTo(792, LAYOUT.floorBottom);
+    ctx.lineTo(-42, LAYOUT.floorBottom);
+    ctx.closePath();
+    ctx.fill();
+    // 木纹线
+    ctx.strokeStyle = 'rgba(120,70,20,0.14)';
+    ctx.lineWidth = 2;
+    for (var i = 1; i <= 6; i++) {
+      var fy = LAYOUT.floorTop + (LAYOUT.floorBottom - LAYOUT.floorTop) * Math.pow(i / 7, 1.4);
+      ctx.beginPath();
+      ctx.moveTo(50 + (fy - LAYOUT.floorTop) * 0.12, fy);
+      ctx.lineTo(700 - (fy - LAYOUT.floorTop) * 0.12, fy);
+      ctx.stroke();
+    }
+    // 纵向木纹
+    ctx.strokeStyle = 'rgba(120,70,20,0.10)';
+    for (var j = 0; j < 9; j++) {
+      var fx = 50 + j * 81;
+      ctx.beginPath();
+      ctx.moveTo(fx, LAYOUT.floorTop + 10);
+      ctx.lineTo(fx + (LAYOUT.floorBottom - LAYOUT.floorTop) * 0.16, LAYOUT.floorBottom);
+      ctx.stroke();
+    }
+
+    // 地毯
+    ctx.fillStyle = 'rgba(224,154,114,0.85)';
+    Utils.ell(ctx, 375, 760, 270, 150);
+    ctx.fillStyle = 'rgba(201,127,90,0.9)';
+    Utils.ell(ctx, 375, 760, 226, 122);
+    ctx.fillStyle = 'rgba(240,196,162,0.8)';
+    Utils.ell(ctx, 375, 760, 120, 62);
+
+    // 角落绿植
+    ctx.fillStyle = '#b0703a';
+    ctx.beginPath();
+    ctx.moveTo(76, 540); ctx.lineTo(106, 540); ctx.lineTo(98, 506); ctx.lineTo(84, 506);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#7cc576';
+    Utils.ell(ctx, 82, 498, 16, 22);
+    Utils.ell(ctx, 102, 494, 16, 26);
+    Utils.ell(ctx, 92, 484, 14, 22);
+  }
+
+  // ---------- 碗（level: 0 空碗 ~ 100 满碗） ----------
+  function drawBowl(ctx, sx, sy, sc, kind, level) {
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    Utils.ell(ctx, sx + 5 * sc, sy + 6 * sc, 66 * sc, 15 * sc);
+    // 碗底垫
+    ctx.fillStyle = 'rgba(217,185,140,0.5)';
+    Utils.ell(ctx, sx, sy + 3 * sc, 70 * sc, 18 * sc);
+
+    var tr = 52 * sc, br = 26 * sc, topY = sy - 42 * sc;
+    var side = ctx.createLinearGradient(0, topY, 0, sy);
+    if (kind === 'food') {
+      side.addColorStop(0, '#e3a265');
+      side.addColorStop(1, '#b97a3c');
+    } else {
+      side.addColorStop(0, '#5aa4d8');
+      side.addColorStop(1, '#3671ab');
+    }
+    ctx.fillStyle = side;
+    ctx.beginPath();
+    ctx.moveTo(sx - tr, topY);
+    ctx.lineTo(sx + tr, topY);
+    ctx.lineTo(sx + br, sy);
+    ctx.lineTo(sx - br, sy);
+    ctx.closePath();
+    ctx.fill();
+
+    // 碗口
+    var rim = kind === 'food' ? '#e8b47c' : '#6db3e2';
+    ctx.fillStyle = rim;
+    Utils.ell(ctx, sx, topY, tr, 20 * sc);
+    // 碗内（空碗显示深色碗底；有存量按比例显示）
+    var lvl = (level == null ? 100 : Math.max(0, Math.min(100, level))) / 100;
+    ctx.fillStyle = kind === 'food' ? '#a9743f' : '#7ec8e3';
+    Utils.ell(ctx, sx, topY + 2 * sc, tr - 8 * sc, 16 * sc);
+    if (lvl > 0 && kind === 'food') {
+      // 粮粒数量随存量变化
+      var grains = Math.ceil(7 * lvl);
+      ctx.fillStyle = '#7a4f26';
+      for (var i = 0; i < grains; i++) {
+        var a = i * 0.9 + 0.4;
+        var r = (i % 3) * 7 * sc;
+        Utils.ell(ctx, sx + Math.cos(a) * r - 8 * sc, topY + 3 * sc + Math.sin(a) * 5 * sc, 5 * sc, 3.4 * sc);
+        Utils.ell(ctx, sx + Math.cos(a + 0.6) * r + 6 * sc, topY + 4 * sc + Math.sin(a + 0.6) * 4 * sc, 4.4 * sc, 3 * sc);
+      }
+    } else if (lvl > 0 && kind === 'water') {
+      // 水面高度随存量
+      var waterY = topY + 2 * sc + (1 - lvl) * 12 * sc;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      Utils.ell(ctx, sx - 12 * sc, waterY - 3 * sc, 12 * sc, 4.5 * sc);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(sx, waterY, (tr - 8 * sc) * (0.4 + lvl * 0.6), 6 * sc, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // 碗口描边
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(sx, topY, tr, 20 * sc, 0, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.stroke();
+
+    // 标签（空碗时提示可点击添粮/水）
+    var label = kind === 'food' ? '粮碗' : '水碗';
+    if (lvl <= 0) label += '（点我添' + (kind === 'food' ? '粮' : '水') + '）';
+    Utils.drawText(ctx, label, sx, sy + 34 * sc, { size: 20 * Math.max(0.8, sc), color: lvl > 0 ? '#8a6a45' : '#d0806a' });
+  }
+
+  // ---------- 猫窝 / 狗窝（放大版：宽度按同侧宠物数自适应） ----------
+  function drawNest(ctx, nest, t) {
+    var p = project(nest.fx, nest.fz);
+    var sx = p.x, sy = p.y, sc = p.sc;
+    var cat = nest.species === 'cat';
+    // 单侧可用宽度约 0.42*650 = 273px，窝宽按宠物数均分、最多 168
+    var sideN = Math.max(1, nest.sideN || 1);
+    var w = Math.max(62, Math.min(168, 232 / sideN * 0.95)) * sc;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    Utils.ell(ctx, sx, sy, w * 0.68, 9 * sc);
+    // 底座垫
+    ctx.fillStyle = cat ? '#f6c3c9' : '#cfa776';
+    Utils.roundRect(ctx, sx - w / 2, sy - 12 * sc, w, 16 * sc, 7 * sc);
+    ctx.fillStyle = cat ? '#fbdde0' : '#e3c49a';
+    Utils.roundRect(ctx, sx - w / 2, sy - 10 * sc, w, 8 * sc, 5 * sc);
+    // 窝身
+    if (cat) {
+      // 圆顶猫窝
+      ctx.fillStyle = '#efa6b3';
+      ctx.beginPath();
+      ctx.moveTo(sx - w / 2, sy - 16 * sc);
+      ctx.arc(sx, sy - 16 * sc, w / 2, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      Utils.ell(ctx, sx - w * 0.22, sy - 26 * sc, w * 0.18, 8 * sc);
+      // 窝口
+      ctx.fillStyle = '#fbd9dd';
+      ctx.beginPath();
+      ctx.arc(sx, sy - 6 * sc, w * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d97f8c';
+      Utils.ell(ctx, sx, sy - 4 * sc, w * 0.15, 6 * sc);
+    } else {
+      // 三角顶狗窝
+      ctx.fillStyle = '#a06f3e';
+      ctx.fillRect(sx - w / 2, sy - 18 * sc, w, 18 * sc);
+      ctx.fillStyle = '#b98a5f';
+      ctx.beginPath();
+      ctx.moveTo(sx - w / 2 - 6 * sc, sy - 18 * sc);
+      ctx.lineTo(sx, sy - 56 * sc);
+      ctx.lineTo(sx + w / 2 + 6 * sc, sy - 18 * sc);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath();
+      ctx.moveTo(sx - w * 0.22, sy - 18 * sc);
+      ctx.lineTo(sx - w * 0.06, sy - 38 * sc);
+      ctx.lineTo(sx + w * 0.06, sy - 38 * sc);
+      ctx.lineTo(sx + w * 0.08, sy - 18 * sc);
+      ctx.closePath();
+      ctx.fill();
+      // 窝口
+      ctx.fillStyle = '#e8c9a4';
+      ctx.beginPath();
+      ctx.arc(sx, sy - 4 * sc, w * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8a5a33';
+      Utils.ell(ctx, sx, sy - 2 * sc, w * 0.14, 5 * sc);
+    }
+    // 名牌（宠物名）
+    var tagTop = cat ? sy - 42 * sc : sy - 66 * sc;
+    var nw = Utils.measure(ctx, nest.name, 12 * sc) + 18 * sc;
+    Utils.roundRect(ctx, sx - nw / 2, tagTop - 10 * sc, nw, 16 * sc, 5 * sc, 'rgba(255,255,255,0.92)');
+    Utils.drawText(ctx, nest.name, sx, tagTop, { size: 12 * sc, weight: 'bold', color: '#7a4f26' });
+  }
+
+  // ---------- 猫砂盆（第四轮） ----------
+  function drawLitter(ctx, t) {
+    var L = LAYOUT.litter;
+    var p = project(L.fx, L.fz);
+    var sx = p.x, sy = p.y, sc = p.sc;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    Utils.ell(ctx, sx + 4 * sc, sy + 3 * sc, 84 * sc, 14 * sc);
+    // 盆身（前高后低的猫砂盆）
+    ctx.fillStyle = '#7db8d9';
+    Utils.roundRect(ctx, sx - 92 * sc, sy - 34 * sc, 184 * sc, 34 * sc, 14 * sc);
+    ctx.fillStyle = '#9ecbe4';
+    Utils.roundRect(ctx, sx - 92 * sc, sy - 34 * sc, 184 * sc, 16 * sc, 14 * sc);
+    // 盆沿
+    ctx.fillStyle = '#5d93b5';
+    Utils.roundRect(ctx, sx - 96 * sc, sy - 40 * sc, 192 * sc, 10 * sc, 8 * sc);
+    // 猫砂
+    ctx.fillStyle = '#e8e2d0';
+    Utils.roundRect(ctx, sx - 86 * sc, sy - 30 * sc, 172 * sc, 12 * sc, 8 * sc);
+    // 猫砂颗粒
+    ctx.fillStyle = '#cfc7ae';
+    for (var i = 0; i < 10; i++) {
+      var gx = sx - 70 * sc + (i * 17 % 140) * sc;
+      var gz = sy - 24 * sc + (i % 3) * 4 * sc;
+      Utils.ell(ctx, gx, gz, 3 * sc, 2 * sc);
+    }
+    // 标签
+    Utils.drawText(ctx, '猫砂盆', sx, sy + 26 * sc, { size: 20 * Math.max(0.8, sc), color: '#8a6a45' });
+  }
+
+  // ---------- 足球 ----------
+  function drawBall(ctx, ball, t) {
+    var p = project(ball.x, ball.z);
+    var sx = p.x, sy = p.y, sc = p.sc;
+    var r = 17 * sc;
+    var spin = ball.spin || 0;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    Utils.ell(ctx, sx, sy, r * 1.25, r * 0.45);
+    // 白球
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(sx, sy - r, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 1.6 * sc;
+    ctx.beginPath();
+    ctx.arc(sx, sy - r, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // 中心黑块
+    ctx.fillStyle = '#333333';
+    ctx.beginPath();
+    ctx.arc(sx, sy - r, r * 0.40, 0, Math.PI * 2);
+    ctx.fill();
+    // 边缘黑块（随滚动旋转）
+    for (var i = 0; i < 4; i++) {
+      var a = i * Math.PI / 2 + 0.5 + spin;
+      ctx.beginPath();
+      ctx.arc(sx + Math.cos(a) * r * 0.80, sy - r + Math.sin(a) * r * 0.80, r * 0.17, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------- 墓碑 ----------
+  function drawTombstone(ctx, pet, t) {
+    var p = project(pet.x, pet.z);
+    var sc = p.sc;
+    var sx = p.x, sy = p.y;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    Utils.ell(ctx, sx + 4 * sc, sy + 2 * sc, 56 * sc, 13 * sc);
+    // 草
+    ctx.strokeStyle = '#6fae62';
+    ctx.lineWidth = 3 * sc;
+    ctx.beginPath();
+    for (var i = 0; i < 5; i++) {
+      var gx = sx - 46 * sc + i * 23 * sc;
+      ctx.moveTo(gx, sy - 2 * sc);
+      ctx.lineTo(gx + (i % 2 ? 4 : -4) * sc, sy - 14 * sc - (i % 3) * 4 * sc);
+    }
+    ctx.stroke();
+    // 石头
+    var gw = 96 * sc, gh = 118 * sc;
+    var gx = sx - gw / 2, gy = sy - gh;
+    var g = ctx.createLinearGradient(gx, gy, gx, gy + gh);
+    g.addColorStop(0, '#d8dbe0');
+    g.addColorStop(1, '#9aa0a8');
+    ctx.fillStyle = g;
+    Utils.roundRectPath(ctx, gx, gy, gw, gh, 22 * sc);
+    ctx.fill();
+    ctx.strokeStyle = '#7d838c';
+    ctx.lineWidth = 2 * sc;
+    Utils.roundRectPath(ctx, gx, gy, gw, gh, 22 * sc);
+    ctx.stroke();
+    // 顶部小圆
+    ctx.fillStyle = '#c3c7cd';
+    Utils.ell(ctx, sx, gy + 6 * sc, gw * 0.42, 12 * sc);
+    // R.I.P.
+    Utils.drawText(ctx, 'R.I.P.', sx, gy + 34 * sc, { size: 22 * sc, weight: 'bold', color: '#6b7078' });
+    // 名牌（宠物名）
+    var pw = Math.max(70 * sc, Utils.measure(ctx, pet.name, 24 * sc) + 24 * sc);
+    Utils.roundRect(ctx, sx - pw / 2, gy + 62 * sc, pw, 40 * sc, 10 * sc, '#f4ecd9', '#c9b98f');
+    Utils.drawText(ctx, pet.name, sx, gy + 82 * sc, { size: 24 * sc, weight: 'bold', color: '#7a5f3d' });
+    // 小花
+    ctx.fillStyle = '#f28ba0';
+    for (var f = 0; f < 3; f++) {
+      var fx = sx - 58 * sc + f * 12 * sc, fy = sy - 8 * sc - f * 4 * sc;
+      Utils.ell(ctx, fx, fy, 5 * sc, 5 * sc);
+    }
+    ctx.fillStyle = '#ffd76a';
+    Utils.ell(ctx, sx - 58 * sc + 12 * sc, sy - 16 * sc, 4 * sc, 4 * sc);
+  }
+
+  // ---------- 宠物 ----------
+  function petPose(pet) {
+    var st = pet.beh.state;
+    if (st === 'walk' || st === 'walk_food' || st === 'walk_water' || st === 'zoomies' || st === 'chase' || st === 'flee' || st === 'playBall') return 'walk';
+    if (st === 'eat') return 'eat';
+    if (st === 'drink') return 'drink';
+    if (st === 'sleep' || st === 'rest' || st === 'litter') return 'sleep';
+    if (st === 'happy') return 'happy';
+    if (st === 'sad') return 'sad';
+    return 'idle';
+  }
+
+  function drawPet(ctx, pet, t, selected, time) {
+    var p = project(pet.x, pet.z);
+    var sc = p.sc;
+    var sx = p.x, sy = p.y;
+    // 体重影响体型（越重越大）
+    var wf = Pets_weightFactor(pet);
+    var s = 200 * sc * wf;
+    var eatOffset = (pet.beh.state === 'eat' || pet.beh.state === 'drink') ? pet.eatSide * 40 * sc : 0;
+    sx += eatOffset;
+
+    // 选中光环
+    if (selected) {
+      ctx.strokeStyle = 'rgba(255,143,63,0.85)';
+      ctx.lineWidth = 4;
+      Utils.ell(ctx, sx, sy + 3 * sc, 74 * sc * wf, 20 * sc * wf);
+    }
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    Utils.ell(ctx, sx, sy, 56 * sc * wf, 15 * sc * wf);
+
+    // 身体
+    Avatar.draw(ctx, pet, {
+      x: sx, y: sy, s: s, t: t, pose: petPose(pet), facing: pet.facing
+    });
+
+    // 名字牌（随体型上移）
+    var nameW = Utils.measure(ctx, pet.name, 23 * sc) + 30 * sc;
+    var ny = sy - (s * 1.2 + 10 * sc);
+    Utils.roundRect(ctx, sx - nameW / 2, ny, nameW, 34 * sc, 14 * sc, 'rgba(255,255,255,0.92)', 'rgba(255,143,63,0.6)');
+    Utils.drawText(ctx, pet.name, sx, ny + 17 * sc, { size: 22 * sc, weight: 'bold', color: '#7a4f26' });
+
+    // 需求气泡
+    var needs = Pets_needs(pet);
+    var bubbleY = ny - 40 * sc;
+    if (needs.indexOf('food') >= 0 && needs.indexOf('water') >= 0) {
+      drawBubble(ctx, sx, bubbleY, 40 * sc, '饿&渴', '#ff7d5c');
+    } else if (needs.indexOf('food') >= 0) {
+      drawBubble(ctx, sx, bubbleY, 36 * sc, '饿', '#ff9d4d');
+    } else if (needs.indexOf('water') >= 0) {
+      drawBubble(ctx, sx, bubbleY, 36 * sc, '渴', '#4aa8e0');
+    }
+  }
+
+  // 需要引用 Pets（在 game 中通过 setPetsAPI 注入）
+  var Pets_needs = function () { return []; };
+  var Pets_mood = function () { return 'neutral'; };
+  var Pets_weightFactor = function () { return 1; };
+  var Pets_weightKg = function () { return 3; };
+
+  function drawBubble(ctx, x, y, r, text, color) {
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // 小尾巴
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.3, y + r * 0.85);
+    ctx.lineTo(x + r * 0.1, y + r * 1.5);
+    ctx.lineTo(x + r * 0.35, y + r * 0.8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    Utils.drawText(ctx, text, x, y + 2, { size: r * 0.7, weight: 'bold', color: color });
+  }
+
+  // 气泡 / 爱心 / Zzz 粒子（game.time 为毫秒动画时间）
+  function drawParticles(ctx, game) {
+    // 爱心
+    for (var i = 0; i < game.hearts.length; i++) {
+      var h = game.hearts[i];
+      var life = 1 - (game.time - h.t0) / 1000;
+      if (life <= 0) continue;
+      ctx.globalAlpha = Math.min(1, life * 2);
+      ctx.fillStyle = h.color || '#ff6b81';
+      Utils.heart(ctx, h.x, h.y - h.vy * (game.time - h.t0) / 1000, h.s * (0.7 + life * 0.3));
+    }
+    ctx.globalAlpha = 1;
+    // Zzz
+    for (var z = 0; z < game.zzzs.length; z++) {
+      var zz = game.zzzs[z];
+      var zl = 1 - (game.time - zz.t0) / 1200;
+      if (zl <= 0) continue;
+      ctx.globalAlpha = Math.min(1, zl * 2);
+      Utils.drawText(ctx, 'Z', zz.x + Math.sin((game.time - zz.t0) / 300) * 6,
+        zz.y - (game.time - zz.t0) / 1200 * 30, { size: 26, weight: 'bold', color: '#7aa0c9' });
+    }
+    ctx.globalAlpha = 1;
+    // 如厕泡泡（💧 / 💩）
+    for (var bb = 0; bb < game.bubbles.length; bb++) {
+      var b = game.bubbles[bb];
+      var bl = 1 - (game.time - b.t0) / 1400;
+      if (bl <= 0) continue;
+      ctx.globalAlpha = Math.min(1, bl * 2);
+      Utils.drawText(ctx, b.text, b.x + Math.sin((game.time - b.t0) / 260) * 5,
+        b.y - (game.time - b.t0) / 1400 * 34, { size: 34, weight: 'bold' });
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- 顶部状态卡 ----------
+  function drawChip(ctx, pet, x, selected, t) {
+    var w = LAYOUT.chipW, h = LAYOUT.chipH;
+    var dead = !pet.alive;
+    Utils.roundRect(ctx, x, LAYOUT.chipY, w, h, 18,
+      selected ? '#fff2e2' : 'rgba(255,255,255,0.9)',
+      selected ? '#ff8f3f' : 'rgba(200,170,130,0.5)');
+    if (selected) {
+      ctx.strokeStyle = '#ff8f3f';
+      ctx.lineWidth = 3;
+      Utils.roundRectPath(ctx, x, LAYOUT.chipY, w, h, 18);
+      ctx.stroke();
+    }
+    // 小头像
+    if (dead) {
+      ctx.fillStyle = '#c3c7cd';
+      Utils.roundRect(ctx, x + 20, LAYOUT.chipY + 34, 44, 52, 10, '#c3c7cd');
+      Utils.drawText(ctx, 'R.I.P.', x + 42, LAYOUT.chipY + 62, { size: 12, color: '#777' });
+    } else {
+      Avatar.drawIcon(ctx, pet, x + 48, LAYOUT.chipY + 66, 76);
+    }
+    // 名字
+    var nameColor = dead ? '#999' : '#6b4a35';
+    Utils.drawText(ctx, pet.name, x + 110, LAYOUT.chipY + 30, { size: 26, weight: 'bold', align: 'left', color: nameColor });
+    if (dead) {
+      Utils.drawText(ctx, '已离开', x + 110, LAYOUT.chipY + 104, { size: 20, align: 'left', color: '#b99' });
+      return;
+    }
+    // 性别 + 体重
+    drawGender(ctx, x + 110, LAYOUT.chipY + 55, pet.gender);
+    Utils.drawText(ctx, Pets_weightKg(pet).toFixed(1) + ' 斤', x + 126, LAYOUT.chipY + 59, { size: 17, align: 'left', color: '#a0805a' });
+    // 情绪脸
+    var mood = Pets_mood(pet);
+    drawMiniFace(ctx, x + 190, LAYOUT.chipY + 30, mood);
+    // 三条状态行：图标 + 条 + 百分比
+    drawStatusRow(ctx, x + 100, LAYOUT.chipY + 84, 46, pet.hunger, 'feed', '#ff9d4d');
+    drawStatusRow(ctx, x + 100, LAYOUT.chipY + 110, 46, pet.thirst, 'water', '#4aa8e0');
+    drawStatusRow(ctx, x + 100, LAYOUT.chipY + 136, 46, pet.energy, 'rest', '#ffd34d');
+  }
+
+  // 性别符号（♂ 蓝 / ♀ 粉）
+  function drawGender(ctx, cx, cy, gender) {
+    var color = gender === 'female' ? '#e76a9a' : '#5a8fd0';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    if (gender === 'female') {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 6, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 1);
+      ctx.lineTo(cx, cy + 10);
+      ctx.moveTo(cx - 5.5, cy + 4.5);
+      ctx.lineTo(cx + 5.5, cy + 4.5);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy - 5, 5.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + 3.8, cy - 1.2);
+      ctx.lineTo(cx + 11.5, cy - 8.5);
+      ctx.moveTo(cx + 11.5, cy - 8.5);
+      ctx.lineTo(cx + 6.5, cy - 9);
+      ctx.moveTo(cx + 11.5, cy - 8.5);
+      ctx.lineTo(cx + 11.5, cy - 3.5);
+      ctx.stroke();
+    }
+  }
+
+  function drawStatusRow(ctx, x, cy, barW, val, icon, color) {
+    drawIcon(ctx, icon, x + 9, cy, color);
+    var bx = x + 24, bw = barW;
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    Utils.roundRect(ctx, bx, cy - 4, bw, 9, 4);
+    if (val > 0) {
+      ctx.fillStyle = color;
+      Utils.roundRect(ctx, bx, cy - 4, Math.max(5, bw * val / 100), 9, 4);
+    }
+    Utils.drawText(ctx, Math.round(val) + '%', x + 24 + bw + 48, cy + 1, { size: 15, align: 'right', color: '#8a6a45' });
+  }
+
+  function drawMiniFace(ctx, x, y, mood) {
+    ctx.strokeStyle = mood === 'happy' ? '#e8883f' : (mood === 'sad' ? '#5a8fd0' : '#9a9a9a');
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (mood === 'happy') ctx.arc(x, y, 12, Math.PI * 0.15, Math.PI * 0.85);
+    else if (mood === 'sad') ctx.arc(x, y + 10, 12, Math.PI * 1.2, Math.PI * 1.8);
+    else ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y);
+    ctx.stroke();
+  }
+
+  // 状态卡滚动导航（左右箭头 + 进度条）
+  function drawChipNav(ctx, game) {
+    if (game.chipMax() <= 0) return;
+    var ay = LAYOUT.chipY + LAYOUT.chipH / 2;
+    var arrows = [{ dir: 'left', cx: 28 }, { dir: 'right', cx: W - 28 }];
+    for (var i = 0; i < arrows.length; i++) {
+      var a = arrows[i];
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.strokeStyle = 'rgba(200,170,130,0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(a.cx, ay, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#b98a5a';
+      ctx.beginPath();
+      if (a.dir === 'left') {
+        ctx.moveTo(a.cx + 6, ay - 8); ctx.lineTo(a.cx - 6, ay); ctx.lineTo(a.cx + 6, ay + 8);
+      } else {
+        ctx.moveTo(a.cx - 6, ay - 8); ctx.lineTo(a.cx + 6, ay); ctx.lineTo(a.cx - 6, ay + 8);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    // 进度指示条
+    var total = game.pets.length * (LAYOUT.chipW + LAYOUT.chipGap);
+    var view = W - LAYOUT.chipX0 * 2;
+    var trackX = 90, trackW = W - 180;
+    ctx.fillStyle = 'rgba(140,90,50,0.12)';
+    Utils.roundRect(ctx, trackX, LAYOUT.chipY + LAYOUT.chipH + 12, trackW, 4, 2);
+    var thumbW = Math.max(24, trackW * view / total);
+    var ratio = game.chipMax() > 0 ? game.chipScroll / game.chipMax() : 0;
+    ctx.fillStyle = 'rgba(255,143,63,0.85)';
+    Utils.roundRect(ctx, trackX + ratio * (trackW - thumbW), LAYOUT.chipY + LAYOUT.chipH + 12, thumbW, 4, 2);
+  }
+
+  // ---------- 底部操作栏 ----------
+  function drawActionBar(ctx, game) {
+    // 提示
+    Utils.drawText(ctx, '点碗添粮添水 · 点按/滑动宠物抚摸 · 记得每天照料',
+      375, LAYOUT.barTop - 16, { size: 20, color: '#a0805a' });
+    // 底栏底色
+    var g = ctx.createLinearGradient(0, LAYOUT.barTop, 0, H);
+    g.addColorStop(0, 'rgba(255,244,230,0)');
+    g.addColorStop(1, '#fff3e2');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, LAYOUT.barTop, W, H - LAYOUT.barTop);
+
+    var btns = LAYOUT.buttons;
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var pressed = game.pressedId === b.id;
+      var enabled = !(b.id === 'feed' || b.id === 'water' || b.id === 'rest') || game.hasAlivePet();
+      var fill = b.id === 'add' ? '#ffffff' : (b.id === 'help' ? '#ffffff' : '#ff8f3f');
+      var textColor = (b.id === 'add' || b.id === 'help') ? '#8a5a33' : '#ffffff';
+      if (!enabled) { fill = '#d8cbb8'; textColor = '#fff'; }
+      ctx.fillStyle = fill;
+      if (pressed) ctx.fillStyle = Utils.darken(fill, 0.12);
+      // 阴影
+      ctx.fillStyle = 'rgba(140,90,50,0.18)';
+      Utils.roundRect(ctx, b.x + 2, b.y + 4, b.w, b.h, 18);
+      ctx.fillStyle = pressed ? Utils.darken(fill, 0.1) : fill;
+      Utils.roundRect(ctx, b.x, b.y, b.w, b.h, 18, pressed ? Utils.darken(fill, 0.1) : fill);
+      if (!pressed) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2;
+        Utils.roundRectPath(ctx, b.x + 2, b.y + 2, b.w - 4, (b.h - 4) / 2, 16);
+        ctx.stroke();
+      }
+      // 图标
+      drawIcon(ctx, b.id, b.x + b.w / 2, b.y + 30, textColor);
+      Utils.drawText(ctx, b.label, b.x + b.w / 2, b.y + 68, { size: 26, weight: 'bold', color: textColor });
+    }
+  }
+
+  function drawIcon(ctx, id, cx, cy, color) {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    switch (id) {
+      case 'feed': // 骨头
+        Utils.ell(ctx, cx - 9, cy, 6, 6);
+        Utils.ell(ctx, cx + 9, cy, 6, 6);
+        ctx.fillRect(cx - 4, cy - 2.5, 8, 5);
+        break;
+      case 'water': { // 水滴
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 12);
+        ctx.quadraticCurveTo(cx + 11, cy + 2, cx + 7, cy + 8);
+        ctx.quadraticCurveTo(cx, cy + 13, cx - 7, cy + 8);
+        ctx.quadraticCurveTo(cx - 11, cy + 2, cx, cy - 12);
+        ctx.fill();
+        break;
+      }
+      case 'rest': // 月亮
+        ctx.beginPath();
+        ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ff8f3f';
+        ctx.beginPath();
+        ctx.arc(cx + 4, cy - 3, 8.5, 0, Math.PI * 2);
+        ctx.fill();
+        Utils.drawText(ctx, 'Z', cx + 12, cy - 12, { size: 18, weight: 'bold', color: '#8a5a33' });
+        break;
+      case 'add':
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+        ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+        ctx.stroke();
+        break;
+      case 'help':
+        Utils.drawText(ctx, '?', cx, cy + 1, { size: 30, weight: 'bold', color: color });
+        break;
+    }
+  }
+
+  // ---------- 设置界面 ----------
+  function drawSetup(ctx, game) {
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fff7ea');
+    bg.addColorStop(1, '#ffe9d0');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    // 装饰爪印
+    ctx.fillStyle = 'rgba(180,120,70,0.12)';
+    drawPaw(ctx, 120, 180, 30);
+    drawPaw(ctx, 620, 220, 24);
+    drawPaw(ctx, 90, 700, 26);
+
+    Utils.drawText(ctx, '宠物小屋', 375, 130, { size: 52, weight: 'bold', color: '#8a5a33' });
+    Utils.drawText(ctx, '和小宠物一起度过每一天吧', 375, 185, { size: 24, color: '#a0805a' });
+    drawSetupHearts(ctx, game);
+
+    // 小猫卡
+    drawSetupCard(ctx, game, 'cat', 0);
+    // 小狗卡
+    drawSetupCard(ctx, game, 'dog', 1);
+
+    // 规则
+    Utils.roundRect(ctx, 50, 885, 650, 165, 18, 'rgba(255,255,255,0.85)');
+    Utils.drawText(ctx, '玩法规则', 375, 917, { size: 26, weight: 'bold', color: '#8a5a33' });
+    var rules = [
+      '· 粮 / 水 / 精力都会按 3 天从 100% 衰减到 0%',
+      '· 任意一项降到 0%，宠物就会离开，只剩一座墓碑',
+      '· 每天记得喂食、喂水、让它休息，多抚摸会更开心'
+    ];
+    for (var i = 0; i < rules.length; i++) {
+      Utils.drawText(ctx, rules[i], 74, 963 + i * 36, { size: 21, align: 'left', color: '#8a6a45' });
+    }
+
+    // 已选提示
+    var chosen = [];
+    if (game.setup.picked.cat) chosen.push('小猫');
+    if (game.setup.picked.dog) chosen.push('小狗');
+    Utils.drawText(ctx, '将收养：' + (chosen.length ? chosen.join('、') : '（请至少选一只）'),
+      375, 1082, { size: 22, weight: 'bold', color: chosen.length ? '#8a5a33' : '#d0806a' });
+
+    // 开始按钮
+    var sb = game.setup.startBtn;
+    Utils.roundRect(ctx, sb.x + 3, sb.y + 5, sb.w, sb.h, 24, 'rgba(140,90,50,0.2)');
+    var pressed = game.pressedId === 'setup_start';
+    Utils.roundRect(ctx, sb.x, sb.y, sb.w, sb.h, 24, pressed ? '#e87f2f' : '#ff8f3f');
+    Utils.drawText(ctx, '开始游戏', sb.x + sb.w / 2, sb.y + sb.h / 2, { size: 34, weight: 'bold', color: '#fff' });
+  }
+
+  function drawSetupCard(ctx, game, species, idx) {
+    var y = 230 + idx * 325;
+    var picked = game.setup.picked[species];
+    Utils.roundRect(ctx, 50, y, 650, 300, 20,
+      picked ? 'rgba(255,255,255,0.94)' : 'rgba(238,234,226,0.9)',
+      picked ? '#ff8f3f' : '#d9cfbe');
+    if (picked) {
+      // 右上角选中 ✓
+      ctx.fillStyle = '#ff8f3f';
+      ctx.beginPath();
+      ctx.arc(668, y + 26, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(660, y + 26); ctx.lineTo(666, y + 32); ctx.lineTo(677, y + 19);
+      ctx.stroke();
+    } else {
+      Utils.drawText(ctx, '点卡片选择它', 668, y + 30, { size: 16, color: '#b8a88f' });
+    }
+    // 左侧形象
+    var demo = { species: species, avatar: { colors: { body: '#f2a03d', stripe: '#cf7f26', belly: '#ffe8c9', ear: '#f7b35c', earIn: '#f5b9c4' } } };
+    if (species === 'dog') demo.avatar.colors = { body: '#c9935f', stripe: '#a06f3e', belly: '#f4e2c8', ear: '#a06f3e', earIn: '#e8b49c' };
+    ctx.save();
+    if (!picked) ctx.globalAlpha = 0.35;
+    Avatar.draw(ctx, demo, { x: 190, y: y + 250, s: 170, t: game.time / 1000, pose: 'happy', facing: 1 });
+    ctx.restore();
+    // 右侧文字
+    var tx = 330;
+    var titleColor = picked ? '#6b4a35' : '#b3a68f';
+    var subColor = picked ? '#a0805a' : '#c8bca6';
+    Utils.drawText(ctx, species === 'cat' ? '小猫' : '小狗', tx, y + 48, { size: 32, weight: 'bold', align: 'left', color: titleColor });
+    Utils.drawText(ctx, species === 'cat' ? '一只黏人的小猫咪' : '一只活泼的小狗狗', tx, y + 92, { size: 22, align: 'left', color: subColor });
+    Utils.drawText(ctx, '给它起个名字', tx, y + 140, { size: 20, align: 'left', color: subColor });
+    // 输入框
+    var box = species === 'cat' ? game.setup.catBox : game.setup.dogBox;
+    var name = species === 'cat' ? game.setup.catName : game.setup.dogName;
+    Utils.roundRect(ctx, tx, box.y, box.w, box.h, 14, picked ? '#f6eee2' : '#eae4d8', picked ? '#d9b98c' : '#d5cbb8');
+    Utils.drawText(ctx, name || '点击输入名字',
+      tx + 20, box.y + box.h / 2, { size: 28, align: 'left', color: name ? titleColor : '#c9b28f' });
+    Utils.drawText(ctx, '✎', tx + box.w - 30, box.y + box.h / 2, { size: 24, color: picked ? '#d9a05f' : '#c8bca6' });
+  }
+
+  function drawPaw(ctx, x, y, r) {
+    Utils.ell(ctx, x, y, r * 0.9, r * 0.75);
+    Utils.ell(ctx, x - r * 0.8, y - r * 1.1, r * 0.32, r * 0.4);
+    Utils.ell(ctx, x - r * 0.3, y - r * 1.3, r * 0.32, r * 0.42);
+    Utils.ell(ctx, x + r * 0.3, y - r * 1.3, r * 0.32, r * 0.42);
+    Utils.ell(ctx, x + r * 0.8, y - r * 1.1, r * 0.32, r * 0.4);
+  }
+
+  // 设置页浮动爱心（让画面动起来）
+  function drawSetupHearts(ctx, game) {
+    var t = game.time / 1000;
+    var spots = [
+      { x: 112, y: 432, phase: 0 },
+      { x: 288, y: 398, phase: 2.1 },
+      { x: 102, y: 750, phase: 1.1 },
+      { x: 288, y: 716, phase: 3.2 }
+    ];
+    for (var i = 0; i < spots.length; i++) {
+      var s = spots[i];
+      var a = (Math.sin(t * 2 + s.phase) + 1) / 2;
+      ctx.globalAlpha = 0.3 + a * 0.55;
+      ctx.fillStyle = '#ff8fa3';
+      Utils.heart(ctx, s.x, s.y + Math.sin(t * 2.4 + s.phase) * 10, 10 + a * 6);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- 领养界面 ----------
+  function drawAddPet(ctx, game) {
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fff7ea');
+    bg.addColorStop(1, '#ffe9d0');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    Utils.drawText(ctx, '领养新伙伴', 375, 92, { size: 42, weight: 'bold', color: '#8a5a33' });
+    Utils.drawText(ctx, '上传一张照片，渲染成专属 3D 形象', 375, 136, { size: 22, color: '#a0805a' });
+
+    // 返回
+    var back = game.addpet.backBtn;
+    Utils.roundRect(ctx, back.x, back.y, back.w, back.h, 14, 'rgba(255,255,255,0.9)', '#d9b98c');
+    Utils.drawText(ctx, '← 返回', back.x + back.w / 2, back.y + back.h / 2, { size: 24, color: '#8a5a33' });
+
+    // 照片区
+    var ph = game.addpet.photo;
+    var px = 125, py = 175, pw = 500, phh = 400;
+    if (!ph) {
+      ctx.setLineDash([12, 10]);
+      Utils.roundRect(ctx, px, py, pw, phh, 22, 'rgba(255,255,255,0.55)', '#d9b98c');
+      ctx.setLineDash([]);
+      Utils.drawText(ctx, '＋ 点击选择照片', 375, py + 170, { size: 30, weight: 'bold', color: '#c9a86a' });
+      Utils.drawText(ctx, '从相册选择或拍照，将生成你的 3D 伙伴', 375, py + 218, { size: 20, color: '#b99c74' });
+      Utils.drawText(ctx, '（仅保存在本地，不会上传）', 375, py + 252, { size: 18, color: '#c9b28f' });
+    } else {
+      Utils.roundRect(ctx, px, py, pw, phh, 22, '#ffffff', '#d9b98c');
+      ctx.save();
+      Utils.roundRectPath(ctx, px + 8, py + 8, pw - 16, phh - 16, 16);
+      ctx.clip();
+      ctx.drawImage(ph.texture, px + 8, py + 8, pw - 16, phh - 16);
+      ctx.restore();
+      var reselect = game.addpet.reselectBtn;
+      Utils.roundRect(ctx, reselect.x, reselect.y, reselect.w, reselect.h, 12, 'rgba(255,255,255,0.92)', '#d9b98c');
+      Utils.drawText(ctx, '重新选择', reselect.x + reselect.w / 2, reselect.y + reselect.h / 2, { size: 20, color: '#8a5a33' });
+    }
+
+    // 3D 形象预览
+    Utils.drawText(ctx, '3D 形象预览', 375, 620, { size: 22, color: '#a0805a' });
+    if (ph) {
+      var previewPet = {
+        species: 'custom',
+        avatar: { type: 'photo', colors: ph.colors, ears: game.addpet.species === 'cat' ? 'cat' : (game.addpet.species === 'dog' ? 'dog' : 'round'), texture: ph.texture }
+      };
+      Avatar.draw(ctx, previewPet, { x: 375, y: 775, s: 210, t: game.time / 1000, pose: 'happy', facing: 1 });
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      Utils.roundRect(ctx, 275, 640, 200, 130, 16);
+      Utils.drawText(ctx, '选择照片后', 375, 700, { size: 20, color: '#c9b28f' });
+      Utils.drawText(ctx, '这里会显示形象', 375, 730, { size: 20, color: '#c9b28f' });
+    }
+
+    // 名字
+    Utils.drawText(ctx, '名字', 300, 796, { size: 22, color: '#a0805a' });
+    var nb = game.addpet.nameBox;
+    Utils.roundRect(ctx, nb.x, nb.y, nb.w, nb.h, 14, '#f6eee2', '#d9b98c');
+    Utils.drawText(ctx, game.addpet.name || '点击输入名字', nb.x + 20, nb.y + nb.h / 2,
+      { size: 27, align: 'left', color: game.addpet.name ? '#6b4a35' : '#c9b28f' });
+    Utils.drawText(ctx, '✎', nb.x + nb.w - 30, nb.y + nb.h / 2, { size: 22, color: '#d9a05f' });
+
+    // 物种
+    Utils.drawText(ctx, '耳朵款式', 300, 966, { size: 22, color: '#a0805a' });
+    var sps = game.addpet.speciesBtns;
+    for (var i = 0; i < sps.length; i++) {
+      var sp = sps[i];
+      var sel = game.addpet.species === sp.value;
+      Utils.roundRect(ctx, sp.x, sp.y, sp.w, sp.h, 14, sel ? '#ff8f3f' : 'rgba(255,255,255,0.9)',
+        sel ? '#ff8f3f' : '#d9b98c');
+      Utils.drawText(ctx, sp.label, sp.x + sp.w / 2, sp.y + sp.h / 2, { size: 24, weight: 'bold', color: sel ? '#fff' : '#8a5a33' });
+    }
+
+    // 确认
+    var ok = game.addpet.confirmBtn;
+    Utils.roundRect(ctx, ok.x + 3, ok.y + 5, ok.w, ok.h, 22, 'rgba(140,90,50,0.2)');
+    Utils.roundRect(ctx, ok.x, ok.y, ok.w, ok.h, 22, game.pressedId === 'addpet_ok' ? '#e87f2f' : '#ff8f3f');
+    Utils.drawText(ctx, '确认领养', ok.x + ok.w / 2, ok.y + ok.h / 2, { size: 30, weight: 'bold', color: '#fff' });
+
+    // 或者直接领养一只内置宠物
+    Utils.drawText(ctx, '不想用照片？直接领养一只：', 375, ok.y + ok.h + 18, { size: 20, color: '#a0805a' });
+    var qcs = [game.addpet.quickCatBtn, game.addpet.quickDogBtn];
+    for (var q = 0; q < qcs.length; q++) {
+      var qc = qcs[q];
+      var qLabel = q === 0 ? '小猫' : '小狗';
+      Utils.roundRect(ctx, qc.x, qc.y, qc.w, qc.h, 14, 'rgba(255,255,255,0.95)', '#d9b98c');
+      Utils.drawText(ctx, '领养' + qLabel, qc.x + qc.w / 2, qc.y + qc.h / 2, { size: 24, weight: 'bold', color: '#8a5a33' });
+    }
+  }
+
+  // 弹窗按钮位置（绘制与命中检测共用）
+  function modalButtonRects(modal) {
+    var cw = 560, ch = 120 + modal.lines.length * 44 + 100;
+    var cx = (W - cw) / 2, cy = (H - ch) / 2;
+    var n = modal.buttons.length;
+    var gap = 16;
+    var bw = (cw - 48 - (n - 1) * gap) / n;
+    var rects = [];
+    for (var b = 0; b < n; b++) {
+      rects.push({ x: cx + 24 + b * (bw + gap), y: cy + ch - 92, w: bw, h: 70, btn: modal.buttons[b] });
+    }
+    return rects;
+  }
+
+  // ---------- 弹窗 ----------
+  function drawModal(ctx, modal) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, 0, W, H);
+    var cw = 560, ch = 120 + modal.lines.length * 44 + 100;
+    var cx = (W - cw) / 2, cy = (H - ch) / 2;
+    Utils.roundRect(ctx, cx, cy, cw, ch, 24, '#fffdf7');
+    Utils.drawText(ctx, modal.title, W / 2, cy + 56, { size: 32, weight: 'bold', color: '#6b4a35' });
+    for (var i = 0; i < modal.lines.length; i++) {
+      Utils.drawText(ctx, modal.lines[i], W / 2, cy + 118 + i * 44, { size: 24, color: '#8a6a45' });
+    }
+    var rects = modalButtonRects(modal);
+    for (var r = 0; r < rects.length; r++) {
+      var btn = rects[r].btn;
+      var bx = rects[r].x, by = rects[r].y, bw = rects[r].w, bh = rects[r].h;
+      var primary = btn.style !== 'ghost';
+      Utils.roundRect(ctx, bx + 2, by + 3, bw, bh, 16, 'rgba(140,90,50,0.18)');
+      Utils.roundRect(ctx, bx, by, bw, bh, 16, primary ? '#ff8f3f' : '#f0e4d2', primary ? '#ff8f3f' : '#d9b98c');
+      Utils.drawText(ctx, btn.label, bx + bw / 2, by + bh / 2, { size: 25, weight: 'bold', color: primary ? '#fff' : '#8a5a33' });
+    }
+  }
+
+  // ---------- 提示 ----------
+  function drawToast(ctx, toast) {
+    if (!toast) return;
+    var life = 1 - (Date.now() - toast.t0) / toast.dur;
+    if (life <= 0) return;
+    ctx.globalAlpha = Math.min(1, life * 2.5);
+    var w = Utils.measure(ctx, toast.text, 26) + 60;
+    Utils.roundRect(ctx, (W - w) / 2, 330, w, 56, 28, 'rgba(60,40,25,0.85)');
+    Utils.drawText(ctx, toast.text, W / 2, 358, { size: 26, color: '#fff' });
+    ctx.globalAlpha = 1;
+  }
+
+  // 供 game 使用
+  var Render = {
+    LAYOUT: LAYOUT,
+    W: W, H: H,
+    project: project,
+    drawRoom: drawRoom,
+    drawBowl: drawBowl,
+    drawNest: drawNest,
+    drawBall: drawBall,
+    drawLitter: drawLitter,
+    drawTombstone: drawTombstone,
+    drawPet: drawPet,
+    drawParticles: drawParticles,
+    drawChip: drawChip,
+    drawChipNav: drawChipNav,
+    drawActionBar: drawActionBar,
+    drawSetup: drawSetup,
+    drawAddPet: drawAddPet,
+    drawModal: drawModal,
+    drawToast: drawToast,
+    modalButtonRects: modalButtonRects,
+    setPetsAPI: function (api) {
+      Pets_needs = api.needs; Pets_mood = api.mood;
+      if (api.weightFactor) Pets_weightFactor = api.weightFactor;
+      if (api.weightKg) Pets_weightKg = api.weightKg;
+    }
+  };
+
+  return Render;
+});
