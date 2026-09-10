@@ -586,55 +586,88 @@
   }
 
   // ---------- 顶部状态卡 ----------
-  function drawChip(ctx, pet, x, w, selected, t) {
-    var h = LAYOUT.chipH;
+  // 单行完整卡（h=154）与两行紧凑卡（h=74）共用；紧凑卡内容按高度压缩
+  function drawChip(ctx, pet, x, y, w, h, selected, t) {
     var dead = !pet.alive;
-    Utils.roundRect(ctx, x, LAYOUT.chipY, w, h, 18,
+    var compact = h < 100;
+    Utils.roundRect(ctx, x, y, w, h, 18,
       selected ? '#fff2e2' : 'rgba(255,255,255,0.9)',
       selected ? '#ff8f3f' : 'rgba(200,170,130,0.5)');
     if (selected) {
       ctx.strokeStyle = '#ff8f3f';
       ctx.lineWidth = 3;
-      Utils.roundRectPath(ctx, x, LAYOUT.chipY, w, h, 18);
+      Utils.roundRectPath(ctx, x, y, w, h, 18);
       ctx.stroke();
     }
-    // 内容按卡宽自适应（避免宠物多时"超框"）
+    var nameColor = dead ? '#999' : '#6b4a35';
+    if (compact) {
+      // ===== 两行模式：紧凑卡 =====
+      // 左侧小头像
+      var icX = x + w * 0.12, icY = y + h / 2;
+      if (dead) {
+        ctx.fillStyle = '#c3c7cd';
+        Utils.roundRect(ctx, icX - 12, y + 18, 24, 26, 6, '#c3c7cd');
+        Utils.drawText(ctx, 'RIP', icX, y + 33, { size: 9, color: '#777' });
+      } else {
+        Avatar.drawIcon(ctx, pet, icX, icY, Math.min(30, w * 0.12));
+      }
+      // 名字（右上区域）
+      var nX = x + w * 0.26;
+      var nMax = w * 0.7 - 6;
+      var shown = pet.name;
+      while (shown.length > 1 && Utils.measure(ctx, shown, 17, 'bold') > nMax) { shown = shown.slice(0, -1); }
+      if (shown !== pet.name) shown += '…';
+      Utils.drawText(ctx, shown, nX, y + 20, { size: 17, weight: 'bold', align: 'left', color: nameColor });
+      if (dead) {
+        Utils.drawText(ctx, '已离开', nX, y + 44, { size: 14, align: 'left', color: '#b99' });
+        return;
+      }
+      // 性别 + 体重
+      drawGender(ctx, nX, y + 38, pet.gender);
+      Utils.drawText(ctx, Pets_weightKg(pet).toFixed(1) + ' 斤', nX + 14, y + 42, { size: 13, align: 'left', color: '#a0805a' });
+      // 情绪脸（右上）
+      drawMiniFace(ctx, x + w - 16, y + 22, Pets_mood(pet));
+      // 三条状态条横排底部
+      var barW = (w - 24) / 3;
+      var by = y + h - 14;
+      drawStatusRow(ctx, x + 6, by, barW - 6, pet.hunger, 'feed', '#ff9d4d', true);
+      drawStatusRow(ctx, x + 8 + barW, by, barW - 6, pet.thirst, 'water', '#4aa8e0', true);
+      drawStatusRow(ctx, x + 10 + barW * 2, by, barW - 6, pet.energy, 'rest', '#ffd34d', true);
+      return;
+    }
+    // ===== 单行模式：完整卡 =====
     var iconR = Math.min(76, Math.max(44, w * 0.32));
-    var iconX = x + w * 0.22, iconY = LAYOUT.chipY + 66;
+    var iconX = x + w * 0.22, iconY = y + 66;
     var txtX = x + w * 0.5;
     // 小头像
     if (dead) {
       ctx.fillStyle = '#c3c7cd';
-      Utils.roundRect(ctx, iconX - 22, LAYOUT.chipY + 34, 44, 52, 10, '#c3c7cd');
-      Utils.drawText(ctx, 'R.I.P.', iconX, LAYOUT.chipY + 62, { size: 12, color: '#777' });
+      Utils.roundRect(ctx, iconX - 22, y + 34, 44, 52, 10, '#c3c7cd');
+      Utils.drawText(ctx, 'R.I.P.', iconX, y + 62, { size: 12, color: '#777' });
     } else {
       Avatar.drawIcon(ctx, pet, iconX, iconY, iconR);
     }
     // 名字（窄卡时自动截断，避免超出卡片）
-    var nameColor = dead ? '#999' : '#6b4a35';
     var nameMax = w * 0.48 - 10;
-    var shown = pet.name;
-    while (shown.length > 1 && Utils.measure(ctx, shown, 26, 'bold') > nameMax) {
-      shown = shown.slice(0, -1);
-    }
-    if (shown !== pet.name) shown += '…';
-    Utils.drawText(ctx, shown, txtX, LAYOUT.chipY + 30, { size: 26, weight: 'bold', align: 'left', color: nameColor });
+    var shown2 = pet.name;
+    while (shown2.length > 1 && Utils.measure(ctx, shown2, 26, 'bold') > nameMax) { shown2 = shown2.slice(0, -1); }
+    if (shown2 !== pet.name) shown2 += '…';
+    Utils.drawText(ctx, shown2, txtX, y + 30, { size: 26, weight: 'bold', align: 'left', color: nameColor });
     if (dead) {
-      Utils.drawText(ctx, '已离开', txtX, LAYOUT.chipY + 104, { size: 20, align: 'left', color: '#b99' });
+      Utils.drawText(ctx, '已离开', txtX, y + 104, { size: 20, align: 'left', color: '#b99' });
       return;
     }
     // 性别 + 体重
-    drawGender(ctx, txtX, LAYOUT.chipY + 55, pet.gender);
-    Utils.drawText(ctx, Pets_weightKg(pet).toFixed(1) + ' 斤', txtX + 16, LAYOUT.chipY + 59, { size: 17, align: 'left', color: '#a0805a' });
+    drawGender(ctx, txtX, y + 55, pet.gender);
+    Utils.drawText(ctx, Pets_weightKg(pet).toFixed(1) + ' 斤', txtX + 16, y + 59, { size: 17, align: 'left', color: '#a0805a' });
     // 情绪脸
-    var mood = Pets_mood(pet);
-    drawMiniFace(ctx, x + w * 0.88, LAYOUT.chipY + 30, mood);
+    drawMiniFace(ctx, x + w * 0.88, y + 30, Pets_mood(pet));
     // 三条状态行：图标 + 条 + 百分比
-    var barW = Math.max(20, w * 0.44);
+    var barW2 = Math.max(20, w * 0.44);
     var barX = x + w * 0.5 - 2;
-    drawStatusRow(ctx, barX, LAYOUT.chipY + 84, barW, pet.hunger, 'feed', '#ff9d4d');
-    drawStatusRow(ctx, barX, LAYOUT.chipY + 110, barW, pet.thirst, 'water', '#4aa8e0');
-    drawStatusRow(ctx, barX, LAYOUT.chipY + 136, barW, pet.energy, 'rest', '#ffd34d');
+    drawStatusRow(ctx, barX, y + 84, barW2, pet.hunger, 'feed', '#ff9d4d');
+    drawStatusRow(ctx, barX, y + 110, barW2, pet.thirst, 'water', '#4aa8e0');
+    drawStatusRow(ctx, barX, y + 136, barW2, pet.energy, 'rest', '#ffd34d');
   }
 
   // 性别符号（♂ 蓝 / ♀ 粉）
@@ -669,7 +702,19 @@
     }
   }
 
-  function drawStatusRow(ctx, x, cy, barW, val, icon, color) {
+  function drawStatusRow(ctx, x, cy, barW, val, icon, color, mini) {
+    if (mini) {
+      // 紧凑模式：小图标 + 细条（不显示百分比，两行卡空间有限）
+      drawIcon(ctx, icon, x + 6, cy, color);
+      var mbx = x + 14, mbw = Math.max(6, barW - 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      Utils.roundRect(ctx, mbx, cy - 3, mbw, 6, 3);
+      if (val > 0) {
+        ctx.fillStyle = color;
+        Utils.roundRect(ctx, mbx, cy - 3, Math.max(3, mbw * val / 100), 6, 3);
+      }
+      return;
+    }
     drawIcon(ctx, icon, x + 9, cy, color);
     var bx = x + 24, bw = barW;
     ctx.fillStyle = 'rgba(0,0,0,0.08)';
@@ -716,8 +761,8 @@
       ctx.closePath();
       ctx.fill();
     }
-    // 进度指示条
-    var total = game.pets.length * (game.chipW() + LAYOUT.chipGap);
+    // 进度指示条（两行布局时 chipMax=0，不会走到这里）
+    var total = game.pets.length * (game.chipLayout().cw + LAYOUT.chipGap);
     var view = W - LAYOUT.chipX0 * 2;
     var trackX = 90, trackW = W - 180;
     ctx.fillStyle = 'rgba(140,90,50,0.12)';
