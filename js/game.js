@@ -19,7 +19,7 @@
   var W = Render.W, H = Render.H;
   var LAYOUT = Render.LAYOUT;
   var KEY = 'pet_house_save_v1';
-  var MAX_PETS = 8;
+  var MAX_PETS = 10;
 
   function inRect(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
