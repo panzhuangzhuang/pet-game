@@ -101,12 +101,9 @@
     this.litterWarnAt = 0;  // 臭气警告时间戳（每天最多提示一次）
 
     this.setup = {
-      catName: '咪咪',
-      dogName: '旺财',
-      picked: { cat: true, dog: true },
-      catBox: { x: 330, y: 395, w: 300, h: 64 },
-      dogBox: { x: 330, y: 720, w: 300, h: 64 },
-      startBtn: { x: 125, y: 1100, w: 500, h: 110 }
+      names: { cat: '咪咪', dog: '旺财', pig: '哼哼', cow: '哞哞', sheep: '咩咩', chick: '叽叽' },
+      picked: { cat: true, dog: true, pig: false, cow: false, sheep: false, chick: false },
+      startBtn: { x: 125, y: 1055, w: 500, h: 100 }
     };
     this.resetAddPet();
   }
@@ -115,18 +112,25 @@
     this.addpet = {
       photo: null,
       name: '',
+      species: null,                                 // 照片宠物必选物种；null = 未选
       gender: null,                                  // 领养时手动选公母；null = 随机
       backBtn: { x: 20, y: 40, w: 130, h: 62 },
-      photoArea: { x: 125, y: 175, w: 500, h: 400 },
-      reselectBtn: { x: 480, y: 505, w: 130, h: 50 },
-      nameBox: { x: 330, y: 820, w: 320, h: 64 },
+      photoArea: { x: 125, y: 170, w: 500, h: 320 },
+      reselectBtn: { x: 480, y: 430, w: 130, h: 50 },
+      nameBox: { x: 330, y: 675, w: 320, h: 60 },
       genderBtns: [
-        { value: 'male', label: '♂ 公', x: 165, y: 922, w: 205, h: 54 },
-        { value: 'female', label: '♀ 母', x: 390, y: 922, w: 205, h: 54 }
+        { value: 'male', label: '♂ 公', x: 165, y: 762, w: 205, h: 50 },
+        { value: 'female', label: '♀ 母', x: 390, y: 762, w: 205, h: 50 }
       ],
-      confirmBtn: { x: 150, y: 1014, w: 450, h: 100 },
-      quickCatBtn: { x: 150, y: 1144, w: 205, h: 58 },
-      quickDogBtn: { x: 375, y: 1144, w: 205, h: 58 }
+      speciesBtns: [
+        { value: 'cat', label: '小猫', x: 50, y: 850, w: 206, h: 46 },
+        { value: 'dog', label: '小狗', x: 272, y: 850, w: 206, h: 46 },
+        { value: 'pig', label: '小猪', x: 494, y: 850, w: 206, h: 46 },
+        { value: 'cow', label: '小牛', x: 50, y: 904, w: 206, h: 46 },
+        { value: 'sheep', label: '小羊', x: 272, y: 904, w: 206, h: 46 },
+        { value: 'chick', label: '小鸡', x: 494, y: 904, w: 206, h: 46 }
+      ],
+      confirmBtn: { x: 150, y: 975, w: 450, h: 92 }
     };
   };
 
@@ -267,7 +271,7 @@
   // ---------------- 生命周期 ----------------
   Game.prototype.start = function () {
     var self = this;
-    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor });
+    Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES });
     this.P.bindTouch(this.canvas, {
       start: function (x, y, id) { self.onStart(x, y, id); },
       move: function (x, y, id) { self.onMove(x, y, id); },
@@ -674,28 +678,29 @@
   Game.prototype.rebuildNests = function () {
     var self = this;
     this.nests = [];
-    var cats = [], dogs = [];
-    this.pets.forEach(function (p) {
-      if (!p.alive) return;
-      if (p.species === 'cat') cats.push(p); else dogs.push(p);
-    });
-    var place = function (list, species, x0, x1) {
+    var order = Pets.SPECIES_ORDER;
+    var nSp = order.length;
+    order.forEach(function (sp, i) {
+      var list = [];
+      self.pets.forEach(function (p) {
+        if (!p.alive || p.species !== sp) return;
+        list.push(p);
+      });
       var n = list.length;
       if (!n) return;
+      var x0 = 0.03 + i * (0.94 / nSp), x1 = 0.03 + (i + 1) * (0.94 / nSp);
       var slot = (x1 - x0) / n;
-      for (var i = 0; i < n; i++) {
+      for (var j = 0; j < n; j++) {
         self.nests.push({
-          species: species,
-          fx: x0 + slot * (i + 0.5),
+          species: sp,
+          fx: x0 + slot * (j + 0.5),
           fz: 0.045,
-          name: list[i].name,
-          petId: list[i].id,
+          name: list[j].name,
+          petId: list[j].id,
           sideN: n
         });
       }
-    };
-    place(cats, 'cat', 0.08, 0.50);
-    place(dogs, 'dog', 0.50, 0.92);
+    });
   };
 
   Game.prototype.petNest = function (pet) {
@@ -709,11 +714,11 @@
   // 条件：同种 1 公 1 母都活着、两只都已养满 365 天、距上次生育满一年冷却
   Game.prototype.checkBreeding = function (now) {
     if (now - this.lastBreedAt < 365 * 86400000) return null;
-    var cats = [], dogs = [];
+    var groups = {};
+    Pets.SPECIES_ORDER.forEach(function (sp) { groups[sp] = []; });
     this.pets.forEach(function (p) {
       if (!p.alive) return;
-      if (p.species === 'cat') cats.push(p);
-      else if (p.species === 'dog') dogs.push(p);
+      if (groups[p.species]) groups[p.species].push(p);
     });
     var find = function (list, sp) {
       if (list.length < 2) return null;
@@ -727,7 +732,11 @@
       if ((now - born) < 365 * 86400000) return null;
       return { m: m, f: f, sp: sp };
     };
-    return find(cats, 'cat') || find(dogs, 'dog');
+    for (var sp in groups) {
+      var pair = find(groups[sp], sp);
+      if (pair) return pair;
+    }
+    return null;
   };
 
   Game.prototype.doBreed = function (pair, now) {
@@ -736,9 +745,10 @@
       this.toastMsg('小屋住不下新生的小宝宝啦');
       return;
     }
+    var spInfo = Pets.SPECIES[pair.sp] || Pets.SPECIES.cat;
     var self = this;
     for (var i = 0; i < n; i++) {
-      var baby = Pets.createBuiltIn(pair.sp, (pair.sp === 'cat' ? '小猫' : '小狗') + (i + 1));
+      var baby = Pets.createBuiltIn(pair.sp, spInfo.label + (i + 1));
       baby.baseWeight = 1;                       // 新生 1 斤，之后按每年 3 斤的节奏长
       baby.gender = Math.random() < 0.5 ? 'male' : 'female';
       baby.createdAt = now;
@@ -750,7 +760,7 @@
     this.modal = {
       title: '🎉 新生命诞生啦！',
       lines: [
-        pair.m.name + ' 和 ' + pair.f.name + ' 生了一窝 ' + n + ' 只小' + (pair.sp === 'cat' ? '猫' : '狗') + '！',
+        pair.m.name + ' 和 ' + pair.f.name + ' 生了一窝 ' + n + ' 只小' + spInfo.baby + '！',
         '新生宝宝 ' + Pets.weightKg(this.pets[this.pets.length - 1], now).toFixed(1) + ' 斤，快去看看它们吧'
       ],
       buttons: [
@@ -964,8 +974,7 @@
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
     var np;
     if (oldPet.avatar && oldPet.avatar.type === 'photo') {
-      var sp = oldPet.avatar.ears === 'cat' ? 'cat' : (oldPet.avatar.ears === 'dog' ? 'dog' : 'custom');
-      np = Pets.createFromPhoto(oldPet.name, sp, oldPet.avatar.dataURL, oldPet.avatar.colors);
+      np = Pets.createFromPhoto(oldPet.name, oldPet.species, oldPet.avatar.dataURL, oldPet.avatar.colors);
       Photo.loadTexture(np.avatar.dataURL, function (err, cv) {
         if (!err && cv) np.avatar.texture = cv;
       });
@@ -1002,7 +1011,7 @@
     this.modal = {
       title: pet.name,
       lines: [
-        '种类：' + (pet.species === 'cat' ? '小猫' : pet.species === 'dog' ? '小狗' : '照片伙伴'),
+        '种类：' + Pets.speciesLabel(pet.species),
         '性别：' + Pets.genderLabel(pet) + ' · 体重：' + Pets.weightKg(pet).toFixed(1) + ' 斤（每年约长 3 斤）',
         '心情值：' + Math.round(Pets.happiness(pet)),
         pet.alive ? '每天记得照料它哦' : '它已经离开了……'
@@ -1318,10 +1327,10 @@
   // 繁殖状态诊断：告诉玩家当前为什么能生 / 为什么还不能生
   Game.prototype.breedStatus = function () {
     var now = Date.now(), out = [];
-    var groups = {
-      cat: { m: 0, f: 0, mYoung: 0, fYoung: 0 },
-      dog: { m: 0, f: 0, mYoung: 0, fYoung: 0 }
-    };
+    var groups = {};
+    Pets.SPECIES_ORDER.forEach(function (sp) {
+      groups[sp] = { m: 0, f: 0, mYoung: 0, fYoung: 0 };
+    });
     this.pets.forEach(function (p) {
       if (!p.alive) return;
       var g = groups[p.species];
@@ -1331,8 +1340,8 @@
       else if (p.gender === 'female') { g.f++; if (!g.fYoung || age < g.fYoung) g.fYoung = age; }
     });
     var coolDays = Math.floor((now - this.lastBreedAt) / 86400000);
-    ['cat', 'dog'].forEach(function (sp) {
-      var g = groups[sp], name = sp === 'cat' ? '猫' : '狗';
+    Pets.SPECIES_ORDER.forEach(function (sp) {
+      var g = groups[sp], name = Pets.SPECIES[sp].short;
       if (!g.m && !g.f) return;
       if (!g.m || !g.f) { out.push(name + '：' + g.m + '公 ' + g.f + '母，需要一公一母'); return; }
       var bornAge = Math.min(g.mYoung, g.fYoung);
@@ -1348,7 +1357,7 @@
   // 手动配对的候选：满一年、同种一公一母、冷却已满的全部组合
   Game.prototype.breedCandidates = function (now) {
     var out = [], self = this;
-    ['cat', 'dog'].forEach(function (sp) {
+    Pets.SPECIES_ORDER.forEach(function (sp) {
       var ms = [], fs = [];
       self.pets.forEach(function (p) {
         if (!p.alive || p.species !== sp) return;
@@ -1435,32 +1444,28 @@
   Game.prototype.setupHit = function (x, y) {
     var s = this.setup;
     var self = this;
-    // 卡片（点击切换是否养这只）
-    var catCard = { x: 50, y: 230, w: 650, h: 300 };
-    var dogCard = { x: 50, y: 555, w: 650, h: 300 };
-    if (inRect(x, y, s.catBox)) {
-      if (!s.picked.cat) { this.toastMsg('先点卡片选择养小猫吧'); return; }
-      this.P.textInput({ title: '给小猫起个名字', defaultValue: s.catName, maxLength: 8 }, function (val) {
-        if (val) s.catName = val;
-      });
-      return;
-    }
-    if (inRect(x, y, s.dogBox)) {
-      if (!s.picked.dog) { this.toastMsg('先点卡片选择养小狗吧'); return; }
-      this.P.textInput({ title: '给小狗起个名字', defaultValue: s.dogName, maxLength: 8 }, function (val) {
-        if (val) s.dogName = val;
-      });
-      return;
-    }
-    if (inRect(x, y, catCard)) {
-      if (s.picked.cat && !s.picked.dog) { this.toastMsg('至少养一只宠物哦'); return; }
-      s.picked.cat = !s.picked.cat;
-      return;
-    }
-    if (inRect(x, y, dogCard)) {
-      if (s.picked.dog && !s.picked.cat) { this.toastMsg('至少养一只宠物哦'); return; }
-      s.picked.dog = !s.picked.dog;
-      return;
+    var order = Pets.SPECIES_ORDER;
+    for (var i = 0; i < order.length; i++) {
+      var sp = order[i];
+      var spInfo = Pets.SPECIES[sp];
+      var card = Render.setupCardRect(i);
+      var box = Render.setupNameBoxRect(i);
+      if (inRect(x, y, box)) {
+        if (!s.picked[sp]) { this.toastMsg('先点卡片选择养' + spInfo.label + '吧'); return; }
+        (function (sp2) {
+          self.P.textInput({ title: '给' + Pets.SPECIES[sp2].label + '起个名字', defaultValue: s.names[sp2], maxLength: 8 }, function (val) {
+            if (val) s.names[sp2] = val;
+          });
+        })(sp);
+        return;
+      }
+      if (inRect(x, y, card)) {
+        var aliveCount = 0;
+        for (var k = 0; k < order.length; k++) if (s.picked[order[k]]) aliveCount++;
+        if (s.picked[sp] && aliveCount === 1) { this.toastMsg('至少养一只宠物哦'); return; }
+        s.picked[sp] = !s.picked[sp];
+        return;
+      }
     }
     if (inRect(x, y, s.startBtn)) {
       this.pressedId = 'setup_start';
@@ -1471,11 +1476,12 @@
   Game.prototype.startGame = function () {
     var s = this.setup;
     this.pets = [];
-    if (s.picked.cat) {
-      this.pets.push(Pets.createBuiltIn('cat', (s.catName || '').trim() || '咪咪'));
-    }
-    if (s.picked.dog) {
-      this.pets.push(Pets.createBuiltIn('dog', (s.dogName || '').trim() || '旺财'));
+    var order = Pets.SPECIES_ORDER;
+    for (var i = 0; i < order.length; i++) {
+      var sp = order[i];
+      if (s.picked[sp]) {
+        this.pets.push(Pets.createBuiltIn(sp, (s.names[sp] || '').trim() || Pets.SPECIES[sp].label));
+      }
     }
     if (!this.pets.length) { this.toastMsg('请至少选择一只宠物'); return; }
     this.selectedId = this.pets[0].id;
@@ -1501,21 +1507,27 @@
     for (var i = 0; i < a.genderBtns.length; i++) {
       if (inRect(x, y, a.genderBtns[i])) { a.gender = a.genderBtns[i].value; return; }
     }
+    for (var i = 0; i < a.speciesBtns.length; i++) {
+      if (inRect(x, y, a.speciesBtns[i])) {
+        var sp = a.speciesBtns[i].value;
+        if (a.photo) { a.species = sp; return; }      // 有照片：选择照片伙伴的物种
+        this.adoptBuiltIn(sp); return;                // 没照片：直接领养一只内置宠物
+      }
+    }
     if (inRect(x, y, a.confirmBtn)) {
       this.pressedId = 'addpet_ok';
       this.confirmAdd();
       return;
     }
-    if (inRect(x, y, a.quickCatBtn)) { this.adoptBuiltIn('cat'); return; }
-    if (inRect(x, y, a.quickDogBtn)) { this.adoptBuiltIn('dog'); return; }
   };
 
-  // 快捷领养一只内置小猫 / 小狗
+  // 快捷领养一只内置宠物（六种物种）
   Game.prototype.adoptBuiltIn = function (species) {
     var self = this;
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
-    var def = species === 'cat' ? '新小猫' : '新小狗';
-    this.P.textInput({ title: species === 'cat' ? '给小猫起个名字' : '给小狗起个名字', defaultValue: def, maxLength: 8 }, function (val) {
+    var spInfo = Pets.SPECIES[species] || Pets.SPECIES.cat;
+    var def = '新' + spInfo.label;
+    this.P.textInput({ title: '给' + spInfo.label + '起个名字', defaultValue: def, maxLength: 8 }, function (val) {
       var name = (val || '').trim() || def;
       var pet = Pets.createBuiltIn(species, name);
       if (self.addpet.gender) pet.gender = self.addpet.gender;   // 领养时手动选的性别
@@ -1544,9 +1556,10 @@
   Game.prototype.confirmAdd = function () {
     var a = this.addpet;
     if (!a.photo) { this.toastMsg('请先选择一张照片'); return; }
+    if (!a.species) { this.toastMsg('请选择照片伙伴的物种（必选）'); return; }
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
     var name = (a.name || '').trim() || '我的宠物';
-    var pet = Pets.createFromPhoto(name, 'custom', a.photo.dataURL, a.photo.colors);
+    var pet = Pets.createFromPhoto(name, a.species, a.photo.dataURL, a.photo.colors);
     pet.avatar.texture = a.photo.texture;
     if (a.gender) pet.gender = a.gender;              // 领养时手动选的性别
     this.pets.push(pet);
