@@ -1252,10 +1252,11 @@
   };
 
   // 命中检测
-  // 状态卡自适应宽度：宠物少时全部整屏显示不"超框"；多时保持可滑动
+  // 状态卡自适应宽度：宠物少时全部整屏显示不"超框"；
+  // 宠物多时保持 140px 可读宽度（名字能完整显示），超出部分滑动查看
   Game.prototype.chipW = function () {
     var n = Math.max(1, this.pets.length);
-    return Utils.clamp(Math.floor((W - LAYOUT.chipX0 * 2 - (n - 1) * LAYOUT.chipGap) / n), 96, LAYOUT.chipW);
+    return Utils.clamp(Math.floor((W - LAYOUT.chipX0 * 2 - (n - 1) * LAYOUT.chipGap) / n), 140, LAYOUT.chipW);
   };
 
   Game.prototype.chipMax = function () {
