@@ -104,6 +104,9 @@
     this.selectedSeed = null;
     // 池塘：鱼/虾/乌龟（初始 100g，每年涨 100g）
     this.pond = [];
+    // 工具状态：铲子（铲除未长好的植物）、捞网（捞出池塘水族）
+    this.selectedTool = null;   // 'shovel' | null
+    this.selectedNet = false;
     // 肥料（铲屎获得，1 坨加速植物 1 天）与仓库（农产品/粮）
     this.fertilizer = 0;
     this.store = {
@@ -1473,7 +1476,7 @@
     return x >= 350 && x <= 470 && y >= 235 && y <= 475;
   };
 
-  // 院子布局（六块地 2×3 + 底部种子栏）
+  // 院子布局（六块地 2×3 + 底部工具/种子栏）
   Game.prototype.yardLayout = function () {
     return {
       backBtn: { x: 20, y: 40, w: 130, h: 62 },
@@ -1485,8 +1488,9 @@
         { x: 270, y: 525, w: 210, h: 165 },
         { x: 515, y: 525, w: 210, h: 165 }
       ],
+      tool: { x: 25, y: 1015, w: 100, h: 100 },
       seeds: Pets.PLANT_ORDER.map(function (k, i) {
-        return { key: k, x: 25 + i * 122, y: 1015, w: 110, h: 100 };
+        return { key: k, x: 140 + i * 102, y: 1015, w: 100, h: 100 };
       })
     };
   };
@@ -1508,11 +1512,19 @@
       this.screen = 'store';
       return;
     }
+    // 底部铲子工具（选中后点未长好的植物铲除）
+    if (inRect(x, y, L.tool)) {
+      this.selectedTool = this.selectedTool === 'shovel' ? null : 'shovel';
+      this.selectedSeed = null;
+      this.toastMsg(this.selectedTool ? '铲子拿起来啦！点未长好的植物可以铲除腾位置' : '放下铲子');
+      return;
+    }
     // 种子栏（先于地块，底部）
     for (var i = 0; i < L.seeds.length; i++) {
       var s = L.seeds[i];
       if (inRect(x, y, s)) {
         if (this.seeds[s.key] > 0) {
+          this.selectedTool = null;
           this.selectedSeed = this.selectedSeed === s.key ? null : s.key;
           this.toastMsg(this.selectedSeed ? '选中了' + Pets.plantLabel(s.key) + '种子，点空地播种' : '取消选择');
         } else {
@@ -1535,16 +1547,25 @@
           this.save();
           this.toastMsg('收获了' + Pets.plantLabel(pl.type) + '！种子+1，农产品×2（可去仓库加工成粮）');
         } else {
-          var left = Pets.plantRemainDays(pl, now);
-          if (this.fertilizer > 0) {
-            // 施肥：消耗 1 坨肥料，加速 1 天
-            this.fertilizer--;
-            pl.plantedAt -= 86400000;
-            var left2 = Pets.plantRemainDays(pl, now);
+          if (this.selectedTool === 'shovel') {
+            // 铲除未长好的植物：腾出地块，返还种子
+            var dug = pl.type;
+            this.yard[j] = null;
+            this.seeds[dug] = (this.seeds[dug] || 0) + 1;
             this.save();
-            this.toastMsg('💩 施肥成功！' + Pets.plantLabel(pl.type) + ' 加速 1 天，还剩 ' + left2 + ' 天');
+            this.toastMsg('铲除了还没长好的' + Pets.plantLabel(dug) + '，收回了种子，地块空出来啦');
           } else {
-            this.toastMsg(Pets.plantLabel(pl.type) + ' 还要 ' + left + ' 天成熟（铲屎得肥料可加速）');
+            var left = Pets.plantRemainDays(pl, now);
+            if (this.fertilizer > 0) {
+              // 施肥：消耗 1 坨肥料，加速 1 天
+              this.fertilizer--;
+              pl.plantedAt -= 86400000;
+              var left2 = Pets.plantRemainDays(pl, now);
+              this.save();
+              this.toastMsg('💩 施肥成功！' + Pets.plantLabel(pl.type) + ' 加速 1 天，还剩 ' + left2 + ' 天');
+            } else {
+              this.toastMsg(Pets.plantLabel(pl.type) + ' 还要 ' + left + ' 天成熟（铲屎得肥料可加速，或拿铲子铲除腾位置）');
+            }
           }
         }
         return;
@@ -1565,11 +1586,50 @@
     }
   };
 
-  // 池塘点击：返回院子 / 领养鱼虾龟
+  // 池塘水族位置（绘制与点击命中共用）：网格 + 游动动画
+  Game.prototype.pondPos = function (index, t) {
+    var col = index % 4, row = Math.floor(index / 4);
+    var bx = 100 + col * 158, by = 330 + row * 260;
+    var p = this.pond[index];
+    if (!p) return null;
+    var wob = p.species === 'turtle' ? 4 : (p.species === 'shrimp' ? 22 : 14);
+    return {
+      ax: bx + Math.sin(t * 1.1 + index * 1.7) * wob,
+      ay: by + Math.cos(t * 0.8 + index * 2.3) * (p.species === 'turtle' ? 3 : 10)
+    };
+  };
+
+  // 池塘点击：返回院子 / 捞网 / 领养 / 点水族捞出或查看
   Game.prototype.pondHit = function (x, y) {
     if (x >= 20 && x <= 150 && y >= 40 && y <= 102) {
       this.screen = 'yard';
       return;
+    }
+    // 捞网按钮（右上角）：拿起/放下
+    if (x >= 620 && x <= 730 && y >= 40 && y <= 102) {
+      this.selectedNet = !this.selectedNet;
+      this.toastMsg(this.selectedNet ? '捞网拿起来啦！点水族可以捞出来腾位置' : '放下捞网');
+      return;
+    }
+    // 点水族：捞网模式捞出，否则显示信息
+    var t = this.time / 1000;
+    for (var i = 0; i < this.pond.length; i++) {
+      var pos = this.pondPos(i, t);
+      if (!pos) continue;
+      var dx = x - pos.ax, dy = y - pos.ay;
+      if (dx * dx + dy * dy < 75 * 75) {
+        if (this.selectedNet) {
+          var out = this.pond[i];
+          this.pond.splice(i, 1);
+          this.selectedNet = false;
+          this.save();
+          this.toastMsg('捞出了' + Pets.pondLabel(out.species) + '！池塘空出位置啦（' + this.pond.length + '/8）');
+        } else {
+          var wg = Math.round(Pets.pondWeight(this.pond[i], Date.now()));
+          this.toastMsg(Pets.pondLabel(this.pond[i].species) + ' 现在 ' + wg + 'g（点右上角捞网可捞出腾位置）');
+        }
+        return;
+      }
     }
     Pets.POND_ORDER.forEach(function (k, i) {
       var card = { x: 25 + i * 250, y: 1000, w: 220, h: 150 };
