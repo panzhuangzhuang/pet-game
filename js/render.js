@@ -564,6 +564,7 @@
   var Pets_plantInfo = {};
   var Pets_plantGrowth = function () { return 0; };
   var Pets_plantLabel = function (k) { return k; };
+  var Pets_PLANT_ORDER = ['orchid', 'corn', 'peach', 'peanut', 'watermelon', 'banana'];
   var Pets_pondInfo = {};
   var Pets_pondWeight = function () { return 100; };
   var Pets_pondScale = function () { return 1; };
@@ -1345,6 +1346,22 @@
     // 标题
     Utils.drawText(ctx, '小院子 🌻', 375, 80, { size: 34, weight: 'bold', color: '#5a7a3f' });
     Utils.drawText(ctx, '种子初始每种 1 颗 · 收获可得新种子 · 成熟 30 天', 375, 116, { size: 17, color: '#8a5a33' });
+    Utils.drawText(ctx, '💩 肥料 ×' + game.fertilizer + ' · 铲屎可得 · 1 坨加速植物 1 天', 375, 142, { size: 16, color: '#8a5a33' });
+
+    // 左侧粮仓小屋（点击进仓库：加工粮 / 存粮）
+    var gx = 25, gy = 720, gw = 160, gh = 100;
+    Utils.roundRect(ctx, gx, gy + 22, gw, gh - 22, 10, '#e8d8b8', '#c9a86a');
+    ctx.fillStyle = '#a06a3a';
+    ctx.beginPath();
+    ctx.moveTo(gx - 6, gy + 26);
+    ctx.lineTo(gx + gw / 2, gy - 6);
+    ctx.lineTo(gx + gw + 6, gy + 26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#c98a52';
+    Utils.roundRect(ctx, gx + gw / 2 - 22, gy + 52, 44, 48, 4);
+    Utils.drawText(ctx, '🏚 仓库', gx + gw / 2, gy + 118, { size: 20, weight: 'bold', color: '#6b4a35' });
+    Utils.drawText(ctx, '加工粮 · 存粮', gx + gw / 2, gy + 148, { size: 15, color: '#a0805a' });
 
     // 六块地
     var L = game.yardLayout();
@@ -1492,6 +1509,55 @@
     });
   }
 
+  // ---------- 仓库（农产品 → 加工成粮 → 存粮） ----------
+  function drawStore(ctx, game) {
+    // 背景（木屋仓库风）
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fdf3dd');
+    bg.addColorStop(1, '#ecd9b0');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    // 木地板条纹
+    ctx.strokeStyle = 'rgba(140,90,40,0.18)';
+    ctx.lineWidth = 3;
+    for (var f = 0; f < 12; f++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 240 + f * 90);
+      ctx.lineTo(W, 240 + f * 90);
+      ctx.stroke();
+    }
+    // 返回按钮
+    Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#c9a86a');
+    Utils.drawText(ctx, '← 院子', 85, 76, { size: 26, weight: 'bold', color: '#6b4a35' });
+    // 标题
+    Utils.drawText(ctx, '粮仓 🏚', 375, 80, { size: 34, weight: 'bold', color: '#6b4a35' });
+    Utils.drawText(ctx, '农产品加工成粮 · 粮可以添到粮碗喂宠物', 375, 116, { size: 17, color: '#8a5a33' });
+
+    // 粮（大字显示）
+    Utils.roundRect(ctx, 25, 160, 700, 110, 16, 'rgba(255,255,255,0.9)', '#c9a86a');
+    Utils.drawText(ctx, '🍚 粮 ×' + game.store.food, 100, 218, { size: 34, weight: 'bold', color: '#6b4a35' });
+    Utils.drawText(ctx, '💩 肥料 ×' + game.fertilizer, 640, 218, { size: 26, weight: 'bold', color: '#8a5a33' });
+
+    // 农产品 2 行 × 3 列
+    Utils.drawText(ctx, '农产品（收获植物获得）', 375, 330, { size: 22, weight: 'bold', color: '#6b4a35' });
+    var order = Pets_PLANT_ORDER || ['orchid', 'corn', 'peach', 'peanut', 'watermelon', 'banana'];
+    for (var i = 0; i < 6; i++) {
+      var k = order[i];
+      var def = Pets_plantInfo[k] || { emoji: '🌱', label: k };
+      var cx = 25 + (i % 3) * 240, cy = 360 + Math.floor(i / 3) * 150;
+      Utils.roundRect(ctx, cx, cy, 220, 130, 14, 'rgba(255,255,255,0.92)', '#d9c69a');
+      Utils.drawText(ctx, def.emoji, cx + 60, cy + 52, { size: 40 });
+      Utils.drawText(ctx, def.label, cx + 105, cy + 40, { size: 22, color: '#6b4a35' });
+      Utils.drawText(ctx, '× ' + (game.store.crops[k] || 0), cx + 105, cy + 82, { size: 24, weight: 'bold', color: '#e8883f' });
+    }
+
+    // 底部操作按钮
+    Utils.roundRect(ctx, 25, 1050, 340, 90, 16, '#ffb347', '#ff8f3f');
+    Utils.drawText(ctx, '🍳 全部加工成粮', 195, 1100, { size: 26, weight: 'bold', color: '#fff' });
+    Utils.roundRect(ctx, 385, 1050, 340, 90, 16, '#6fc1e8', '#4aa3df');
+    Utils.drawText(ctx, '🍚 添粮到粮碗', 555, 1100, { size: 26, weight: 'bold', color: '#fff' });
+  }
+
   // 供 game 使用
   var Render = {
     LAYOUT: LAYOUT,
@@ -1507,6 +1573,7 @@
     roomsRects: roomsRects,
     drawYard: drawYard,
     drawPond: drawPond,
+    drawStore: drawStore,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
@@ -1529,6 +1596,7 @@
       if (api.plantInfo) Pets_plantInfo = api.plantInfo;
       if (api.plantGrowth) Pets_plantGrowth = api.plantGrowth;
       if (api.plantLabel) Pets_plantLabel = api.plantLabel;
+      if (api.plantOrder) Pets_PLANT_ORDER = api.plantOrder;
       if (api.pondInfo) Pets_pondInfo = api.pondInfo;
       if (api.pondWeight) Pets_pondWeight = api.pondWeight;
       if (api.pondScale) Pets_pondScale = api.pondScale;
