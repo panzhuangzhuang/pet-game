@@ -103,6 +103,31 @@
     ctx.fillStyle = '#ffd76a';
     Utils.ell(ctx, px + 100, py + 24, 12, 12);
 
+    // 院子门（窗户与挂画之间，点击可进入院子）
+    var dx = 360, dy = 245, dw = 100, dh = 225;
+    // 门框
+    Utils.roundRect(ctx, dx - 8, dy - 8, dw + 16, dh + 16, 8, '#8a5a33');
+    // 门板
+    var doorG = ctx.createLinearGradient(dx, 0, dx + dw, 0);
+    doorG.addColorStop(0, '#a06a3a');
+    doorG.addColorStop(1, '#c68a52');
+    ctx.fillStyle = doorG;
+    Utils.roundRect(ctx, dx, dy, dw, dh, 5);
+    // 门板木纹
+    ctx.strokeStyle = 'rgba(90,50,10,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(dx + dw / 2, dy); ctx.lineTo(dx + dw / 2, dy + dh);
+    ctx.stroke();
+    // 门把手
+    ctx.fillStyle = '#ffd76a';
+    ctx.beginPath();
+    ctx.arc(dx + dw - 22, dy + dh / 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    // 门上方小牌
+    Utils.roundRect(ctx, dx + 8, dy - 30, dw - 16, 26, 6, '#f6e3c2', '#c9a86a');
+    Utils.drawText(ctx, '院子', dx + dw / 2, dy - 13, { size: 16, weight: 'bold', color: '#8a5a33' });
+
     // 地板（梯形透视）
     var floorG = ctx.createLinearGradient(0, LAYOUT.floorTop, 0, LAYOUT.floorBottom);
     floorG.addColorStop(0, '#eec98f');
@@ -531,6 +556,9 @@
   var Pets_speciesOrder = ['cat', 'dog', 'pig', 'cow', 'sheep', 'chick'];
   var Pets_speciesInfo = {};
   Pets_speciesOrder.forEach(function (sp) { Pets_speciesInfo[sp] = { label: sp }; });
+  var Pets_plantInfo = {};
+  var Pets_plantGrowth = function () { return 0; };
+  var Pets_plantLabel = function (k) { return k; };
 
   function drawBubble(ctx, x, y, r, text, color) {
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
@@ -1222,6 +1250,136 @@
     }
   }
 
+  // ---------- 院子（六块地 + 六种植物） ----------
+  function drawPlant(ctx, type, g, x, y, w) {
+    var def = Pets_plantInfo[type];
+    var leaf = (def && def.leaf) || '#4fae6b';
+    var flower = (def && def.flower) || '#c77bff';
+    var emoji = (def && def.emoji) || '🌱';
+    if (g < 0.25) {
+      // 幼苗：两片小芽
+      Utils.drawText(ctx, '🌱', x, y - 10, { size: Math.max(16, w * 0.16), color: '#4fae6b' });
+      return;
+    }
+    // 生长/成熟：茎 + 叶 + 花/果
+    var sc = 0.55 + g * 0.45;
+    var stemH = w * 0.55 * sc;
+    ctx.strokeStyle = '#4a8a3f';
+    ctx.lineWidth = Math.max(3, w * 0.045);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + w * 0.08, y - stemH * 0.6, x + w * 0.02, y - stemH);
+    ctx.stroke();
+    // 叶子
+    ctx.fillStyle = leaf;
+    ctx.beginPath();
+    ctx.ellipse(x - w * 0.10, y - stemH * 0.5, w * 0.16, w * 0.06, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.13, y - stemH * 0.72, w * 0.15, w * 0.055, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    if (g >= 1) {
+      // 成熟：果实 + 光晕
+      ctx.fillStyle = 'rgba(255,220,120,0.35)';
+      Utils.ell(ctx, x + w * 0.02, y - stemH - w * 0.05, w * 0.42, w * 0.42);
+      Utils.drawText(ctx, emoji, x + w * 0.02, y - stemH, { size: Math.max(24, w * 0.3) });
+      // 成熟标记
+      Utils.drawText(ctx, '🎉 可收获', x + w * 0.02, y - stemH - w * 0.28, { size: Math.max(12, w * 0.09), color: '#e8883f' });
+    } else {
+      // 未成熟：小花苞 / 果雏形
+      ctx.fillStyle = flower;
+      Utils.ell(ctx, x + w * 0.02, y - stemH, w * 0.14, w * 0.14);
+    }
+  }
+
+  function drawYard(ctx, game) {
+    var W2 = W, H2 = H;
+    // 天空
+    var sky = ctx.createLinearGradient(0, 0, 0, H2);
+    sky.addColorStop(0, '#a8dcf5');
+    sky.addColorStop(0.55, '#d8f0fb');
+    sky.addColorStop(1, '#e8f7e0');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W2, H2);
+    // 太阳 + 云
+    ctx.fillStyle = '#ffd76a';
+    Utils.ell(ctx, 630, 130, 44, 44);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    Utils.ell(ctx, 120, 120, 44, 20);
+    Utils.ell(ctx, 160, 112, 30, 16);
+    Utils.ell(ctx, 250, 170, 36, 16);
+    Utils.ell(ctx, 285, 163, 26, 14);
+    // 草地
+    var grass = ctx.createLinearGradient(0, 300, 0, H2);
+    grass.addColorStop(0, '#8fcf6f');
+    grass.addColorStop(1, '#6bb84f');
+    ctx.fillStyle = grass;
+    ctx.fillRect(0, 300, W2, H2 - 300);
+    // 栅栏
+    ctx.strokeStyle = '#c9a86a';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(0, 300); ctx.lineTo(W2, 300);
+    ctx.moveTo(0, 340); ctx.lineTo(W2, 340);
+    ctx.stroke();
+    for (var fx = 30; fx < W2; fx += 55) {
+      ctx.fillStyle = '#d9b98c';
+      Utils.roundRect(ctx, fx, 280, 26, 70, 5);
+    }
+    // 返回按钮
+    Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#c9a86a');
+    Utils.drawText(ctx, '← 房间', 85, 76, { size: 26, weight: 'bold', color: '#6b4a35' });
+    // 标题
+    Utils.drawText(ctx, '小院子 🌻', 375, 80, { size: 34, weight: 'bold', color: '#5a7a3f' });
+    Utils.drawText(ctx, '种子初始每种 1 颗 · 收获可得新种子 · 成熟 30 天', 375, 116, { size: 17, color: '#8a5a33' });
+
+    // 六块地
+    var L = game.yardLayout();
+    var now = Date.now();
+    for (var i = 0; i < L.plots.length; i++) {
+      var plot = L.plots[i];
+      var pl = game.yard[i];
+      // 地块（棕色土地 + 白描边）
+      Utils.roundRect(ctx, plot.x, plot.y, plot.w, plot.h, 14, '#b97a3f', '#f6e3c2');
+      ctx.strokeStyle = 'rgba(120,70,20,0.25)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(plot.x + 12, plot.y + plot.h / 2); ctx.lineTo(plot.x + plot.w - 12, plot.y + plot.h / 2);
+      ctx.moveTo(plot.x + plot.w / 2, plot.y + 12); ctx.lineTo(plot.x + plot.w / 2, plot.y + plot.h - 12);
+      ctx.stroke();
+      if (pl) {
+        // 种了植物
+        var g = Pets_plantGrowth(pl, now);
+        drawPlant(ctx, pl.type, g, plot.x + plot.w / 2, plot.y + plot.h - 22, plot.w);
+        // 地块序号角标 + 植物名
+        Utils.drawText(ctx, '第' + (i + 1) + '块地', plot.x + 14, plot.y + 26, { size: 15, color: '#fff' });
+        Utils.drawText(ctx, Pets_plantLabel(pl.type) + (g >= 1 ? '（成熟）' : ''),
+          plot.x + plot.w / 2, plot.y + 24, { size: 17, weight: 'bold', color: '#fff' });
+      } else {
+        // 空地
+        Utils.drawText(ctx, '第' + (i + 1) + '块地 · 空地', plot.x + plot.w / 2, plot.y + plot.h / 2, { size: 18, color: '#fff' });
+        Utils.drawText(ctx, '点一下播种', plot.x + plot.w / 2, plot.y + plot.h / 2 + 28, { size: 15, color: 'rgba(255,255,255,0.9)' });
+      }
+    }
+
+    // 底部种子栏
+    Utils.roundRect(ctx, 10, 970, W2 - 20, 180, 20, 'rgba(255,255,255,0.92)', '#c9a86a');
+    Utils.drawText(ctx, '种子栏（点选种子 → 点空地播种）', 375, 1000, { size: 18, weight: 'bold', color: '#6b4a35' });
+    for (var s = 0; s < L.seeds.length; s++) {
+      var sb = L.seeds[s];
+      var def2 = Pets_plantInfo[L.seeds[s].key] || { emoji: '🌱', label: L.seeds[s].key };
+      var cnt = game.seeds[L.seeds[s].key] || 0;
+      var sel = game.selectedSeed === L.seeds[s].key;
+      Utils.roundRect(ctx, sb.x, sb.y, sb.w, sb.h, 12,
+        sel ? '#fff2d6' : 'rgba(246,227,194,0.7)',
+        sel ? '#ff8f3f' : '#d9b98c');
+      Utils.drawText(ctx, def2.emoji, sb.x + sb.w / 2, sb.y + 34, { size: 32 });
+      Utils.drawText(ctx, def2.label, sb.x + sb.w / 2, sb.y + 60, { size: 15, color: '#6b4a35' });
+      Utils.drawText(ctx, '× ' + cnt, sb.x + sb.w / 2, sb.y + 84, { size: 18, weight: 'bold', color: cnt > 0 ? '#e8883f' : '#bbb' });
+    }
+  }
+
   // 供 game 使用
   var Render = {
     LAYOUT: LAYOUT,
@@ -1235,6 +1393,7 @@
     drawAdminGear: drawAdminGear,
     drawRooms: drawRooms,
     roomsRects: roomsRects,
+    drawYard: drawYard,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
@@ -1254,6 +1413,9 @@
       if (api.weightKg) Pets_weightKg = api.weightKg;
       if (api.speciesOrder) Pets_speciesOrder = api.speciesOrder;
       if (api.speciesInfo) Pets_speciesInfo = api.speciesInfo;
+      if (api.plantInfo) Pets_plantInfo = api.plantInfo;
+      if (api.plantGrowth) Pets_plantGrowth = api.plantGrowth;
+      if (api.plantLabel) Pets_plantLabel = api.plantLabel;
     }
   };
 
