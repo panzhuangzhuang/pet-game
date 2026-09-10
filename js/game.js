@@ -18,17 +18,20 @@
 
   var W = Render.W, H = Render.H;
   var LAYOUT = Render.LAYOUT;
-  var KEY = 'pet_house_save_v1';
+  var ROOM_KEYS = ['pet_house_save_v1', 'pet_house_save_r2', 'pet_house_save_r3'];
   var MAX_PETS = 10;
 
   function inRect(x, y, r) {
     return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
-  function Game(platform, canvas) {
+  function Game(platform, canvas, roomIndex) {
     this.P = platform;
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.roomIndex = roomIndex || 0;
+    this.saveKey = ROOM_KEYS[this.roomIndex] || ROOM_KEYS[0];
+    this.rooms = null;          // 房间管理器（由 Rooms 注入）
 
     var sys = platform.system();
     this.sys = sys;
@@ -43,10 +46,10 @@
       canvas.style.height = sys.height + 'px';
     }
 
-    // 演示 / 调试模式（浏览器 query: ?demo=1&day=73）
+    // 演示 / 调试模式（浏览器 query: ?demo=1&day=73；仅房间 1 生效）
     var q = platform.getQuery();
     this.demo = null;
-    if (q && q.demo !== undefined) {
+    if (q && q.demo !== undefined && this.roomIndex === 0) {
       this.demo = {
         skipSetup: true,
         deadHours: q.day ? parseFloat(q.day) : 0,
@@ -144,12 +147,12 @@
       bowls: this.bowls,
       litterDirt: this.litterDirt
     };
-    this.P.setStorage(KEY, save);
+    this.P.setStorage(this.saveKey, save);
   };
 
   Game.prototype.load = function () {
     var self = this;
-    var save = this.P.getStorage(KEY, null);
+    var save = this.P.getStorage(this.saveKey, null);
     var now = Date.now();
 
     if (this.demo && this.demo.skipSetup) {
@@ -271,16 +274,17 @@
   // ---------------- 生命周期 ----------------
   Game.prototype.start = function () {
     var self = this;
+    if (this._running) return;
     Render.setPetsAPI({ needs: Pets.needs, mood: Pets.mood, weightKg: Pets.weightKg, weightFactor: Pets.weightFactor, speciesOrder: Pets.SPECIES_ORDER, speciesInfo: Pets.SPECIES });
-    this.P.bindTouch(this.canvas, {
-      start: function (x, y, id) { self.onStart(x, y, id); },
-      move: function (x, y, id) { self.onMove(x, y, id); },
-      end: function (x, y, id) { self.onEnd(x, y, id); }
-    });
-    this.P.onHide(function () { self.save(); });
+    if (!this._bound) {
+      this._bound = true;
+      this.P.onHide(function () { self.save(); });
+    }
+    this._running = true;
     this.load();
     this.lastT = Date.now();
     var loop = function () {
+      if (!self._running) return;
       var now = Date.now();
       var dt = Math.min(Math.max(now - self.lastT, 0), 100);
       self.lastT = now;
@@ -289,6 +293,47 @@
       self.P.raf(loop);
     };
     this.P.raf(loop);
+  };
+
+  // 停止当前实例的渲染循环（切房间时由 Rooms 调用；数据已由调用方存档）
+  Game.prototype.stop = function () {
+    this._running = false;
+  };
+
+  // 重置本房间：清存档、回到选宠界面（不重置其它房间）
+  Game.prototype.resetRoom = function () {
+    this.P.removeStorage(this.saveKey);
+    this.pets = [];
+    this.selectedId = null;
+    this.setupDone = false;
+    this.bowls = { food: 0, water: 0 };
+    this.litterDirt = 0;
+    this.nests = [];
+    this.lastBreedAt = 0;
+    this.lastBreedCheck = 0;
+    this.chipScroll = 0;
+    this.toast = null;
+    this.modal = null;
+    this.pendingDeathModal = null;
+    this.hearts = [];
+    this.zzzs = [];
+    this.bubbles = [];
+    this.ball = { x: 0.62, z: 0.30, vx: 0, vz: 0, spin: 0 };
+    this.lastSavedAt = Date.now();
+    this.screen = 'setup';
+    this.resetAddPet();
+  };
+
+  // 房间概览文字（房间面板显示用）
+  Game.prototype.roomSummary = function () {
+    var cnt = {};
+    this.pets.forEach(function (p) {
+      if (!p.alive) return;
+      var l = Pets.speciesLabel(p.species);
+      cnt[l] = (cnt[l] || 0) + 1;
+    });
+    var keys = Object.keys(cnt);
+    return keys.length ? keys.map(function (k) { return k + '×' + cnt[k]; }).join(' · ') : '空房间';
   };
 
   // ---------------- 更新 ----------------
@@ -1084,6 +1129,7 @@
     }
     if (this.screen === 'setup') { this.setupHit(x, y); return; }
     if (this.screen === 'addpet') { this.addpetHit(x, y); return; }
+    if (this.screen === 'rooms') { this.roomsHit(x, y); return; }
 
     // 主界面：底部按钮
     var btns = LAYOUT.buttons;
@@ -1094,6 +1140,11 @@
         this.pressButton = b;
         return;
       }
+    }
+    // 房间入口（右上角，⚙ 齿轮旁）
+    if (x >= 596 && x <= 660 && y >= 12 && y <= 84) {
+      this.openRooms();
+      return;
     }
     // 后台齿轮（右上角，优先于状态卡箭头）
     if (x >= 666 && x <= 738 && y >= 12 && y <= 84) {
@@ -1440,11 +1491,71 @@
     };
   };
 
+  // ---------------- 房间面板（最多 3 个房间） ----------------
+  Game.prototype.openRooms = function () {
+    if (!this.rooms) { this.toastMsg('当前是单房间模式'); return; }
+    this.modal = null;
+    this.screen = 'rooms';
+  };
+
+  Game.prototype.roomsHit = function (x, y) {
+    var self = this;
+    var back = { x: 20, y: 40, w: 130, h: 62 };
+    if (inRect(x, y, back)) { this.screen = 'main'; return; }
+    for (var i = 0; i < 3; i++) {
+      var info = this.rooms.roomInfo(i);
+      var r = Render.roomsRects(info);
+      for (var b = 0; b < r.buttons.length; b++) {
+        var btn = r.buttons[b];
+        if (!inRect(x, y, btn)) continue;
+        if (btn.id === 'enter') {
+          // 进入已有房间
+          this.rooms.enter(i);
+          var g1 = this.rooms.currentGame();
+          g1.screen = 'main';
+          g1.toastMsg('已进入房间 ' + (i + 1));
+        } else if (btn.id === 'reset') {
+          this.confirmResetRoom(i);
+        } else if (btn.id === 'new') {
+          // 开新房间 = 不重置重养：进新房间的选宠界面，其它房间保留
+          this.rooms.enter(i);
+          var g2 = this.rooms.currentGame();
+          g2.screen = 'setup';
+          g2.toastMsg('房间 ' + (i + 1) + ' 开好了，选一只宠物开始养吧');
+        }
+        return;
+      }
+    }
+  };
+
+  Game.prototype.confirmResetRoom = function (i) {
+    var self = this;
+    this.modal = {
+      title: '重置房间 ' + (i + 1) + '？',
+      lines: ['该房间的宠物会被清空，回到选宠界面', '其它房间不受影响，可以放心重置'],
+      rows: [[
+        { label: '取消', style: 'ghost', onTap: function () { self.closeModal(); } },
+        { label: '确认重置', style: 'primary', onTap: function () { self.doResetRoom(i); } }
+      ]]
+    };
+  };
+
+  Game.prototype.doResetRoom = function (i) {
+    var g = this.rooms && this.rooms.games ? this.rooms.games[i] : null;
+    if (g) g.resetRoom();
+    else this.P.removeStorage(ROOM_KEYS[i] || ROOM_KEYS[0]);
+    this.closeModal();
+    this.screen = 'rooms';
+    this.toastMsg('房间 ' + (i + 1) + ' 已重置，可以重新养啦');
+  };
+
   // 设置界面
   Game.prototype.setupHit = function (x, y) {
     var s = this.setup;
     var self = this;
     var order = Pets.SPECIES_ORDER;
+    // 多房间模式下可返回房间面板
+    if (this.rooms && x <= 160 && y <= 110) { this.screen = 'rooms'; return; }
     for (var i = 0; i < order.length; i++) {
       var sp = order[i];
       var spInfo = Pets.SPECIES[sp];
@@ -1580,6 +1691,8 @@
       Render.drawSetup(ctx, this);
     } else if (this.screen === 'addpet') {
       Render.drawAddPet(ctx, this);
+    } else if (this.screen === 'rooms') {
+      Render.drawRooms(ctx, this);
     } else {
       this.renderMain(ctx);
     }
@@ -1642,6 +1755,8 @@
   Game.prototype.toastMsg = function (text, dur) {
     this.toast = { text: text, t0: Date.now(), dur: dur || 2200 };
   };
+
+  Game.roomKeys = ROOM_KEYS;
 
   return Game;
 });
