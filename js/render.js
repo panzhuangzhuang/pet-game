@@ -559,6 +559,10 @@
   var Pets_plantInfo = {};
   var Pets_plantGrowth = function () { return 0; };
   var Pets_plantLabel = function (k) { return k; };
+  var Pets_pondInfo = {};
+  var Pets_pondWeight = function () { return 100; };
+  var Pets_pondScale = function () { return 1; };
+  var Pets_POND_ORDER = ['fish', 'shrimp', 'turtle'];
 
   function drawBubble(ctx, x, y, r, text, color) {
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
@@ -1330,6 +1334,9 @@
     // 返回按钮
     Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#c9a86a');
     Utils.drawText(ctx, '← 房间', 85, 76, { size: 26, weight: 'bold', color: '#6b4a35' });
+    // 右上角池塘按钮
+    Utils.roundRect(ctx, 620, 40, 110, 62, 14, 'rgba(160,210,255,0.95)', '#4aa3df');
+    Utils.drawText(ctx, '🐟 池塘', 675, 76, { size: 24, weight: 'bold', color: '#2a5a8a' });
     // 标题
     Utils.drawText(ctx, '小院子 🌻', 375, 80, { size: 34, weight: 'bold', color: '#5a7a3f' });
     Utils.drawText(ctx, '种子初始每种 1 颗 · 收获可得新种子 · 成熟 30 天', 375, 116, { size: 17, color: '#8a5a33' });
@@ -1380,6 +1387,106 @@
     }
   }
 
+  // ---------- 池塘（鱼 / 虾 / 乌龟） ----------
+  function drawPond(ctx, game) {
+    // 水面背景
+    var water = ctx.createLinearGradient(0, 0, 0, H);
+    water.addColorStop(0, '#bfe6f8');
+    water.addColorStop(0.15, '#7cc4ec');
+    water.addColorStop(1, '#1f6f9e');
+    ctx.fillStyle = water;
+    ctx.fillRect(0, 0, W, H);
+    // 波纹
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 3;
+    for (var wv = 0; wv < 8; wv++) {
+      var wy = 180 + wv * 95;
+      ctx.beginPath();
+      ctx.moveTo(0, wy);
+      for (var wx2 = 0; wx2 <= W; wx2 += 40) {
+        ctx.quadraticCurveTo(wx2 + 20, wy + (wv % 2 ? -7 : 7), wx2 + 40, wy);
+      }
+      ctx.stroke();
+    }
+    // 底部沙石
+    ctx.fillStyle = '#d9b98c';
+    ctx.fillRect(0, 1150, W, H - 1150);
+    ctx.fillStyle = 'rgba(120,80,40,0.35)';
+    for (var st = 0; st < 14; st++) {
+      Utils.ell(ctx, (st * 137 + 40) % W, 1140 + (st % 3) * 26, 14 + (st % 4) * 5, 9 + (st % 3) * 4);
+    }
+    // 水草（两侧）
+    ctx.strokeStyle = '#3f9e4f';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    for (var g2 = 0; g2 < 3; g2++) {
+      var gx = 40 + g2 * 26, gy = 1160;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy);
+      ctx.quadraticCurveTo(gx - 14, gy - 60, gx, gy - 110);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(gx + 8, gy);
+      ctx.quadraticCurveTo(gx + 22, gy - 45, gx + 10, gy - 85);
+      ctx.stroke();
+    }
+    for (var g3 = 0; g3 < 3; g3++) {
+      var gx2 = W - 60 - g3 * 26;
+      ctx.beginPath();
+      ctx.moveTo(gx2, 1160);
+      ctx.quadraticCurveTo(gx2 + 14, gy - 60, gx2, gy - 105);
+      ctx.stroke();
+    }
+
+    // 返回按钮
+    Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#4aa3df');
+    Utils.drawText(ctx, '← 院子', 85, 76, { size: 26, weight: 'bold', color: '#2a5a8a' });
+    // 标题
+    Utils.drawText(ctx, '小池塘 🐟', 375, 80, { size: 34, weight: 'bold', color: '#fff' });
+    Utils.drawText(ctx, '初始 100 克 · 每年涨 100 克 · 最多 8 只', 375, 116, { size: 17, color: 'rgba(255,255,255,0.95)' });
+
+    // 水族（网格分布 + 游动动画）
+    var now = Date.now();
+    var t = game.time / 1000;
+    for (var i = 0; i < game.pond.length && i < 8; i++) {
+      var p = game.pond[i];
+      var col = i % 4, row = Math.floor(i / 4);
+      var bx = 100 + col * 158, by = 330 + row * 260;
+      var def = Pets_pondInfo[p.species] || { emoji: '🐟', label: '鱼' };
+      var sc = Pets_pondScale(p, now);
+      var wob = p.species === 'turtle' ? 4 : (p.species === 'shrimp' ? 22 : 14);
+      var ax = bx + Math.sin(t * 1.1 + i * 1.7) * wob;
+      var ay = by + Math.cos(t * 0.8 + i * 2.3) * (p.species === 'turtle' ? 3 : 10);
+      var fs = Math.max(30, 44 * sc);
+      // 重量标签
+      var wg = Math.round(Pets_pondWeight(p, now));
+      var tag = def.label + ' ' + wg + 'g';
+      var tw = Utils.measure(ctx, tag, 17) + 18;
+      Utils.roundRect(ctx, ax - tw / 2, ay - fs - 46, tw, 26, 13, 'rgba(255,255,255,0.92)', '#4aa3df');
+      Utils.drawText(ctx, tag, ax, ay - fs - 27, { size: 17, weight: 'bold', color: '#2a5a8a' });
+      // 动物
+      Utils.drawText(ctx, def.emoji, ax, ay, { size: fs });
+      // 年龄
+      var days = Math.max(0, Math.floor((now - (p.createdAt || now)) / 86400000));
+      Utils.drawText(ctx, days + ' 天', ax, ay + fs / 2 + 14, { size: 14, color: 'rgba(255,255,255,0.9)' });
+    }
+    if (game.pond.length === 0) {
+      Utils.drawText(ctx, '池塘空空的，去下面领养一只吧～', 375, 560, { size: 24, color: 'rgba(255,255,255,0.95)' });
+    }
+
+    // 底部领养栏
+    Utils.roundRect(ctx, 10, 960, W - 20, 220, 20, 'rgba(255,255,255,0.92)', '#4aa3df');
+    Utils.drawText(ctx, '领养（点卡片添加一只）· 已有 ' + game.pond.length + '/8 只', 375, 992, { size: 18, weight: 'bold', color: '#2a5a8a' });
+    Pets_POND_ORDER.forEach(function (k, i) {
+      var card = { x: 25 + i * 250, y: 1000, w: 220, h: 150 };
+      var d3 = Pets_pondInfo[k] || { emoji: '🐟', label: k };
+      Utils.roundRect(ctx, card.x, card.y, card.w, card.h, 14, 'rgba(230,244,255,0.9)', '#4aa3df');
+      Utils.drawText(ctx, d3.emoji, card.x + card.w / 2, card.y + 52, { size: 44 });
+      Utils.drawText(ctx, '领养' + d3.label, card.x + card.w / 2, card.y + 92, { size: 22, weight: 'bold', color: '#2a5a8a' });
+      Utils.drawText(ctx, '初始 100g', card.x + card.w / 2, card.y + 124, { size: 16, color: '#5a8ab0' });
+    });
+  }
+
   // 供 game 使用
   var Render = {
     LAYOUT: LAYOUT,
@@ -1394,6 +1501,7 @@
     drawRooms: drawRooms,
     roomsRects: roomsRects,
     drawYard: drawYard,
+    drawPond: drawPond,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
@@ -1416,6 +1524,10 @@
       if (api.plantInfo) Pets_plantInfo = api.plantInfo;
       if (api.plantGrowth) Pets_plantGrowth = api.plantGrowth;
       if (api.plantLabel) Pets_plantLabel = api.plantLabel;
+      if (api.pondInfo) Pets_pondInfo = api.pondInfo;
+      if (api.pondWeight) Pets_pondWeight = api.pondWeight;
+      if (api.pondScale) Pets_pondScale = api.pondScale;
+      if (api.pondOrder) Pets_POND_ORDER = api.pondOrder;
     }
   };
 
