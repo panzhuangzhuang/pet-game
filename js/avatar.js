@@ -20,8 +20,13 @@
   // opts: { x, y(脚底), s(整体高度px), t(时间s), pose, facing(1|-1) }
   Avatar.draw = function (ctx, pet, opts) {
     var pose = opts.pose || 'idle';
-    if (pet.species === 'cat') Avatar.drawCat(ctx, pet, pose, opts);
+    if (pet.avatar && pet.avatar.type === 'photo') Avatar.drawPhoto(ctx, pet, pose, opts);
+    else if (pet.species === 'cat') Avatar.drawCat(ctx, pet, pose, opts);
     else if (pet.species === 'dog') Avatar.drawDog(ctx, pet, pose, opts);
+    else if (pet.species === 'pig') Avatar.drawPig(ctx, pet, pose, opts);
+    else if (pet.species === 'cow') Avatar.drawCow(ctx, pet, pose, opts);
+    else if (pet.species === 'sheep') Avatar.drawSheep(ctx, pet, pose, opts);
+    else if (pet.species === 'chick') Avatar.drawChick(ctx, pet, pose, opts);
     else Avatar.drawPhoto(ctx, pet, pose, opts);
   };
 
@@ -362,6 +367,406 @@
     ctx.restore();
   };
 
+  // ---------- 小猪 ----------
+  function pigEars(ctx, col, hx, hy, hr, sc) {
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, hx - hr * 0.72, hy - hr * 0.6, hr * 0.2, hr * 0.17);
+    Utils.ell(ctx, hx + hr * 0.72, hy - hr * 0.6, hr * 0.2, hr * 0.17);
+    ctx.fillStyle = col.earIn;
+    Utils.ell(ctx, hx - hr * 0.72, hy - hr * 0.6, hr * 0.1, hr * 0.08);
+    Utils.ell(ctx, hx + hr * 0.72, hy - hr * 0.6, hr * 0.1, hr * 0.08);
+  }
+  function pigSnout(ctx, col, hx, hy, hr, sc) {
+    // 大圆鼻子 + 两个鼻孔
+    ctx.fillStyle = col.ear;
+    Utils.ell(ctx, hx, hy + hr * 0.42, hr * 0.3, hr * 0.22);
+    ctx.fillStyle = '#b96a7e';
+    Utils.ell(ctx, hx - hr * 0.1, hy + hr * 0.42, hr * 0.05, hr * 0.06);
+    Utils.ell(ctx, hx + hr * 0.1, hy + hr * 0.42, hr * 0.05, hr * 0.06);
+  }
+  Avatar.drawPig = function (ctx, pet, pose, opts) {
+    var col = pet.avatar.colors;
+    var s = opts.s;
+    var sc = s / 190;
+    var cx = opts.x;
+    var cy = opts.y;
+    var t = opts.t || 0;
+    var facing = opts.facing || 1;
+
+    var bob = pose === 'walk' ? Math.sin(t * 12) * 4 * sc
+      : pose === 'idle' ? Math.sin(t * 2.2) * 2 * sc : 0;
+    var jump = pose === 'happy' ? Math.abs(Math.sin(t * 8)) * 28 * sc : 0;
+    var bodyY = cy - 26 * sc - bob + jump;
+    var sleeping = pose === 'sleep';
+
+    ctx.save();
+    ctx.translate(cx, bodyY);
+    if (facing < 0) ctx.scale(-1, 1);
+
+    // 卷卷的小尾巴
+    var tw = pose === 'happy' || pose === 'walk' ? Math.sin(t * 8) * 0.3 : 0;
+    ctx.strokeStyle = col.body;
+    ctx.lineWidth = 5 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-32 * sc, 0);
+    ctx.quadraticCurveTo(-46 * sc, -10 * sc, -40 * sc, -20 * sc + tw * 6 * sc);
+    ctx.quadraticCurveTo(-34 * sc, -26 * sc, -28 * sc, -20 * sc + tw * 8 * sc);
+    ctx.stroke();
+
+    if (sleeping) {
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 0, 6 * sc, 64 * sc, 26 * sc);
+      ctx.fillStyle = col.belly;
+      Utils.ell(ctx, 0, 8 * sc, 42 * sc, 17 * sc);
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 38 * sc, 4 * sc, 36 * sc, 30 * sc);
+      pigEars(ctx, col, 38 * sc, 2 * sc, 30 * sc, sc);
+      drawEyes(ctx, 38 * sc, 0, 30 * sc, 'sleep', t, sc);
+      pigSnout(ctx, col, 38 * sc, -2 * sc, 30 * sc, sc);
+      ctx.restore();
+      return;
+    }
+
+    // 身体
+    var eating = pose === 'eat' || pose === 'drink';
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, 12 * sc, 52 * sc, 42 * sc);
+    ctx.fillStyle = col.belly;
+    Utils.ell(ctx, 0, 16 * sc, 34 * sc, 28 * sc);
+    // 前爪
+    ctx.fillStyle = col.ear;
+    Utils.ell(ctx, -15 * sc, 42 * sc, 9 * sc, 7 * sc);
+    Utils.ell(ctx, 15 * sc, 42 * sc, 9 * sc, 7 * sc);
+
+    // 头
+    var headY = eating ? -22 * sc : -48 * sc;
+    var headR = 34 * sc;
+    headY += pose === 'walk' ? Math.sin(t * 12) * 2 * sc : 0;
+    pigEars(ctx, col, 0, headY, headR, sc);
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, headY, headR, headR * 0.98);
+    drawEyes(ctx, 0, headY - headR * 0.06, headR * 0.94, pose, t, sc);
+    pigSnout(ctx, col, 0, headY, headR, sc);
+    // 嘴
+    ctx.strokeStyle = '#b96a7e';
+    ctx.lineWidth = 2.4 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-headR * 0.12, headY + headR * 0.64);
+    ctx.quadraticCurveTo(0, headY + headR * 0.76, headR * 0.12, headY + headR * 0.64);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // ---------- 小牛 ----------
+  function cowHorns(ctx, col, hx, hy, hr, sc) {
+    ctx.fillStyle = '#e8dcc8';
+    ctx.beginPath();
+    ctx.moveTo(hx - hr * 0.78, hy - hr * 0.28);
+    ctx.lineTo(hx - hr * 0.62, hy - hr * 0.95);
+    ctx.lineTo(hx - hr * 0.42, hy - hr * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(hx + hr * 0.78, hy - hr * 0.28);
+    ctx.lineTo(hx + hr * 0.62, hy - hr * 0.95);
+    ctx.lineTo(hx + hr * 0.42, hy - hr * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    // 圆耳
+    ctx.fillStyle = col.ear;
+    Utils.ell(ctx, hx - hr * 0.68, hy + hr * 0.02, hr * 0.16, hr * 0.12);
+    Utils.ell(ctx, hx + hr * 0.68, hy + hr * 0.02, hr * 0.16, hr * 0.12);
+  }
+  Avatar.drawCow = function (ctx, pet, pose, opts) {
+    var col = pet.avatar.colors;
+    var s = opts.s;
+    var sc = s / 190;
+    var cx = opts.x;
+    var cy = opts.y;
+    var t = opts.t || 0;
+    var facing = opts.facing || 1;
+
+    var bob = pose === 'walk' ? Math.sin(t * 11) * 4 * sc
+      : pose === 'idle' ? Math.sin(t * 2.2) * 2 * sc : 0;
+    var jump = pose === 'happy' ? Math.abs(Math.sin(t * 8)) * 26 * sc : 0;
+    var bodyY = cy - 28 * sc - bob + jump;
+    var sleeping = pose === 'sleep';
+
+    ctx.save();
+    ctx.translate(cx, bodyY);
+    if (facing < 0) ctx.scale(-1, 1);
+
+    // 细尾巴 + 毛簇
+    var sw = pose === 'happy' || pose === 'walk' ? Math.sin(t * 9) * 0.4 : 0;
+    ctx.strokeStyle = col.body;
+    ctx.lineWidth = 4 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-34 * sc, 2 * sc);
+    ctx.quadraticCurveTo(-48 * sc, -6 * sc, -46 * sc, -20 * sc);
+    ctx.stroke();
+    ctx.fillStyle = col.stripe;
+    Utils.ell(ctx, -46 * sc + sw * 6 * sc, -24 * sc, 5 * sc, 8 * sc);
+
+    if (sleeping) {
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 0, 6 * sc, 66 * sc, 27 * sc);
+      ctx.fillStyle = col.belly;
+      Utils.ell(ctx, 0, 8 * sc, 44 * sc, 18 * sc);
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 40 * sc, 4 * sc, 38 * sc, 31 * sc);
+      cowHorns(ctx, col, 40 * sc, 2 * sc, 31 * sc, sc);
+      drawEyes(ctx, 40 * sc, 0, 31 * sc, 'sleep', t, sc);
+      ctx.fillStyle = col.ear;
+      Utils.ell(ctx, 40 * sc, 12 * sc, 9 * sc, 6 * sc);
+      ctx.restore();
+      return;
+    }
+
+    // 身体（白底黑斑）
+    var eating = pose === 'eat' || pose === 'drink';
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, 13 * sc, 56 * sc, 44 * sc);
+    ctx.fillStyle = col.stripe;
+    ctx.globalAlpha = 0.85;
+    Utils.ell(ctx, -18 * sc, 4 * sc, 11 * sc, 10 * sc);
+    Utils.ell(ctx, 14 * sc, 0, 8 * sc, 8 * sc);
+    Utils.ell(ctx, 2 * sc, 22 * sc, 10 * sc, 8 * sc);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = col.belly;
+    Utils.ell(ctx, 0, 18 * sc, 30 * sc, 24 * sc);
+    // 前爪
+    ctx.fillStyle = '#d8c6ae';
+    Utils.ell(ctx, -18 * sc, 46 * sc, 10 * sc, 8 * sc);
+    Utils.ell(ctx, 18 * sc, 46 * sc, 10 * sc, 8 * sc);
+
+    // 头
+    var headY = eating ? -26 * sc : -56 * sc;
+    var headR = 38 * sc;
+    headY += pose === 'walk' ? Math.sin(t * 11) * 2 * sc : 0;
+    cowHorns(ctx, col, 0, headY, headR, sc);
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, headY, headR, headR * 0.95);
+    // 额前花纹
+    ctx.fillStyle = col.stripe;
+    ctx.globalAlpha = 0.7;
+    Utils.ell(ctx, 0, headY - headR * 0.12, headR * 0.22, headR * 0.18);
+    ctx.globalAlpha = 1;
+    // 嘴部浅色
+    ctx.fillStyle = col.belly;
+    Utils.ell(ctx, 0, headY + headR * 0.42, headR * 0.5, headR * 0.34);
+    drawEyes(ctx, 0, headY - headR * 0.05, headR * 0.92, pose, t, sc);
+    // 圆鼻
+    ctx.fillStyle = '#b98a96';
+    Utils.ell(ctx, 0, headY + headR * 0.34, headR * 0.13, headR * 0.1);
+    ctx.strokeStyle = '#b98a96';
+    ctx.lineWidth = 2.2 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-headR * 0.14, headY + headR * 0.55);
+    ctx.quadraticCurveTo(0, headY + headR * 0.68, headR * 0.14, headY + headR * 0.55);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // ---------- 小羊 ----------
+  function sheepWool(ctx, col, x, y, r, n, sc) {
+    ctx.fillStyle = col.stripe;
+    for (var i = 0; i < n; i++) {
+      var a = i / n * Math.PI * 2;
+      Utils.ell(ctx, x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.8, r * 0.5, r * 0.42);
+    }
+  }
+  Avatar.drawSheep = function (ctx, pet, pose, opts) {
+    var col = pet.avatar.colors;
+    var s = opts.s;
+    var sc = s / 190;
+    var cx = opts.x;
+    var cy = opts.y;
+    var t = opts.t || 0;
+    var facing = opts.facing || 1;
+
+    var bob = pose === 'walk' ? Math.sin(t * 12) * 3 * sc
+      : pose === 'idle' ? Math.sin(t * 2.2) * 2 * sc : 0;
+    var jump = pose === 'happy' ? Math.abs(Math.sin(t * 8)) * 24 * sc : 0;
+    var bodyY = cy - 24 * sc - bob + jump;
+    var sleeping = pose === 'sleep';
+
+    ctx.save();
+    ctx.translate(cx, bodyY);
+    if (facing < 0) ctx.scale(-1, 1);
+
+    if (sleeping) {
+      // 一坨卷毛球
+      ctx.fillStyle = col.stripe;
+      Utils.ell(ctx, 0, 6 * sc, 70 * sc, 30 * sc);
+      sheepWool(ctx, col, 0, 6 * sc, 26 * sc, 8, sc);
+      ctx.fillStyle = '#7a6a5a';
+      Utils.ell(ctx, 40 * sc, 4 * sc, 32 * sc, 26 * sc);
+      ctx.fillStyle = col.ear;
+      Utils.ell(ctx, 30 * sc, 0, 6 * sc, 12 * sc);
+      Utils.ell(ctx, 50 * sc, 0, 6 * sc, 12 * sc);
+      drawEyes(ctx, 40 * sc, 0, 28 * sc, 'sleep', t, sc);
+      ctx.restore();
+      return;
+    }
+
+    // 卷毛身体
+    var eating = pose === 'eat' || pose === 'drink';
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, 12 * sc, 54 * sc, 40 * sc);
+    sheepWool(ctx, col, 0, 10 * sc, 24 * sc, 9, sc);
+    // 四条小腿
+    ctx.fillStyle = '#6a5c4e';
+    Utils.ell(ctx, -20 * sc, 42 * sc, 6 * sc, 10 * sc);
+    Utils.ell(ctx, -8 * sc, 42 * sc, 6 * sc, 10 * sc);
+    Utils.ell(ctx, 8 * sc, 42 * sc, 6 * sc, 10 * sc);
+    Utils.ell(ctx, 20 * sc, 42 * sc, 6 * sc, 10 * sc);
+
+    // 头（深色脸）
+    var headY = eating ? -20 * sc : -46 * sc;
+    var headR = 30 * sc;
+    headY += pose === 'walk' ? Math.sin(t * 12) * 2 * sc : 0;
+    // 头上一团卷毛
+    ctx.fillStyle = col.stripe;
+    Utils.ell(ctx, 0, headY - headR * 0.75, headR * 0.5, headR * 0.4);
+    Utils.ell(ctx, -headR * 0.4, headY - headR * 0.55, headR * 0.32, headR * 0.26);
+    Utils.ell(ctx, headR * 0.4, headY - headR * 0.55, headR * 0.32, headR * 0.26);
+    // 垂耳
+    ctx.fillStyle = col.ear;
+    Utils.ell(ctx, -headR * 0.8, headY + headR * 0.1, headR * 0.18, headR * 0.34);
+    Utils.ell(ctx, headR * 0.8, headY + headR * 0.1, headR * 0.18, headR * 0.34);
+    // 脸
+    ctx.fillStyle = '#7a6a5a';
+    Utils.ell(ctx, 0, headY, headR, headR * 0.96);
+    drawEyes(ctx, 0, headY - headR * 0.05, headR * 0.9, pose, t, sc);
+    // 圆鼻
+    ctx.fillStyle = '#c9a0b0';
+    Utils.ell(ctx, 0, headY + headR * 0.36, headR * 0.1, headR * 0.08);
+    ctx.strokeStyle = '#c9a0b0';
+    ctx.lineWidth = 2.2 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-headR * 0.12, headY + headR * 0.52);
+    ctx.quadraticCurveTo(0, headY + headR * 0.64, headR * 0.12, headY + headR * 0.52);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // ---------- 小鸡 ----------
+  function chickComb(ctx, hx, hy, hr, sc) {
+    ctx.fillStyle = '#ef4f5f';
+    ctx.beginPath();
+    var teeth = 3;
+    var w = hr * 0.4;
+    var step = w / teeth;
+    ctx.moveTo(hx - w / 2, hy - hr * 0.15);
+    for (var i = 0; i <= teeth; i++) {
+      var x = hx - w / 2 + i * step;
+      ctx.quadraticCurveTo(x - step * 0.18, hy - hr * 0.52, x, hy - hr * 0.15);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  Avatar.drawChick = function (ctx, pet, pose, opts) {
+    var col = pet.avatar.colors;
+    var s = opts.s;
+    var sc = s / 190;
+    var cx = opts.x;
+    var cy = opts.y;
+    var t = opts.t || 0;
+    var facing = opts.facing || 1;
+
+    var bob = pose === 'walk' ? Math.sin(t * 14) * 5 * sc
+      : pose === 'idle' ? Math.sin(t * 2.4) * 2 * sc : 0;
+    var jump = pose === 'happy' ? Math.abs(Math.sin(t * 9)) * 26 * sc : 0;
+    var bodyY = cy - 30 * sc - bob + jump;
+    var sleeping = pose === 'sleep';
+
+    ctx.save();
+    ctx.translate(cx, bodyY);
+    if (facing < 0) ctx.scale(-1, 1);
+
+    // 尾羽
+    ctx.fillStyle = col.stripe;
+    ctx.beginPath();
+    ctx.moveTo(-30 * sc, -4 * sc);
+    ctx.lineTo(-48 * sc, -18 * sc);
+    ctx.lineTo(-36 * sc, 2 * sc);
+    ctx.closePath();
+    ctx.fill();
+
+    if (sleeping) {
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 0, 8 * sc, 56 * sc, 26 * sc);
+      ctx.fillStyle = col.body;
+      Utils.ell(ctx, 40 * sc, 4 * sc, 34 * sc, 28 * sc);
+      chickComb(ctx, 40 * sc, 2 * sc, 28 * sc, sc);
+      drawEyes(ctx, 40 * sc, 0, 28 * sc, 'sleep', t, sc);
+      ctx.fillStyle = '#ef4f5f';
+      ctx.beginPath();
+      ctx.moveTo(52 * sc, 8 * sc);
+      ctx.lineTo(62 * sc, 14 * sc);
+      ctx.lineTo(50 * sc, 16 * sc);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    // 身体（蛋形）
+    var eating = pose === 'eat' || pose === 'drink';
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, 10 * sc, 46 * sc, 40 * sc);
+    ctx.fillStyle = col.belly;
+    Utils.ell(ctx, 0, 16 * sc, 30 * sc, 24 * sc);
+    // 翅膀
+    var flap = pose === 'happy' || pose === 'walk' ? Math.sin(t * 10) * 5 * sc : 0;
+    ctx.fillStyle = col.stripe;
+    Utils.ell(ctx, -30 * sc, 4 * sc, 14 * sc, 10 * sc + flap * 0.4);
+    Utils.ell(ctx, 30 * sc, 4 * sc, 14 * sc, 10 * sc - flap * 0.4);
+    // 脚
+    ctx.strokeStyle = '#e8932e';
+    ctx.lineWidth = 4 * sc;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10 * sc, 48 * sc);
+    ctx.lineTo(-10 * sc, 58 * sc);
+    ctx.moveTo(-16 * sc, 62 * sc);
+    ctx.lineTo(-10 * sc, 58 * sc);
+    ctx.lineTo(-4 * sc, 62 * sc);
+    ctx.moveTo(10 * sc, 48 * sc);
+    ctx.lineTo(10 * sc, 58 * sc);
+    ctx.moveTo(4 * sc, 62 * sc);
+    ctx.lineTo(10 * sc, 58 * sc);
+    ctx.lineTo(16 * sc, 62 * sc);
+    ctx.stroke();
+
+    // 头
+    var headY = eating ? -16 * sc : -42 * sc;
+    var headR = 30 * sc;
+    headY += pose === 'walk' ? Math.sin(t * 14) * 2 * sc : 0;
+    ctx.fillStyle = col.body;
+    Utils.ell(ctx, 0, headY, headR, headR * 0.96);
+    chickComb(ctx, 0, headY, headR, sc);
+    // 脸颊红
+    ctx.fillStyle = 'rgba(239,79,95,0.4)';
+    Utils.ell(ctx, -headR * 0.62, headY + headR * 0.22, headR * 0.14, headR * 0.1);
+    Utils.ell(ctx, headR * 0.62, headY + headR * 0.22, headR * 0.14, headR * 0.1);
+    drawEyes(ctx, 0, headY - headR * 0.05, headR * 0.92, pose, t, sc);
+    // 尖嘴
+    ctx.fillStyle = '#ef4f5f';
+    ctx.beginPath();
+    ctx.moveTo(-headR * 0.16, headY + headR * 0.28);
+    ctx.lineTo(headR * 0.16, headY + headR * 0.28);
+    ctx.lineTo(0, headY + headR * 0.52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+
   // ---------- 照片 3D 方块伙伴 ----------
   Avatar.drawPhoto = function (ctx, pet, pose, opts) {
     var cfg = pet.avatar;
@@ -505,6 +910,51 @@
       ctx.fillStyle = col.dark;
       Utils.ell(ctx, hx - hr * 0.78, hy + hr * 0.3, hr * 0.26, hr * 0.55);
       Utils.ell(ctx, hx + hr * 0.78, hy + hr * 0.3, hr * 0.26, hr * 0.55);
+    } else if (cfg.ears === 'pig') {
+      ctx.fillStyle = col.head;
+      Utils.ell(ctx, hx - hr * 0.72, hy - hr * 0.55, hr * 0.2, hr * 0.16);
+      Utils.ell(ctx, hx + hr * 0.72, hy - hr * 0.55, hr * 0.2, hr * 0.16);
+      ctx.fillStyle = Utils.lighten(col.head, 0.25);
+      Utils.ell(ctx, hx - hr * 0.72, hy - hr * 0.55, hr * 0.1, hr * 0.07);
+      Utils.ell(ctx, hx + hr * 0.72, hy - hr * 0.55, hr * 0.1, hr * 0.07);
+    } else if (cfg.ears === 'cow') {
+      ctx.fillStyle = '#e8dcc8';
+      ctx.beginPath();
+      ctx.moveTo(hx - hr * 0.78, hy - hr * 0.25);
+      ctx.lineTo(hx - hr * 0.62, hy - hr * 0.92);
+      ctx.lineTo(hx - hr * 0.42, hy - hr * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.78, hy - hr * 0.25);
+      ctx.lineTo(hx + hr * 0.62, hy - hr * 0.92);
+      ctx.lineTo(hx + hr * 0.42, hy - hr * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = col.dark;
+      Utils.ell(ctx, hx - hr * 0.68, hy + hr * 0.05, hr * 0.15, hr * 0.11);
+      Utils.ell(ctx, hx + hr * 0.68, hy + hr * 0.05, hr * 0.15, hr * 0.11);
+    } else if (cfg.ears === 'sheep') {
+      ctx.fillStyle = col.dark;
+      Utils.ell(ctx, hx - hr * 0.78, hy + hr * 0.12, hr * 0.18, hr * 0.32);
+      Utils.ell(ctx, hx + hr * 0.78, hy + hr * 0.12, hr * 0.18, hr * 0.32);
+      ctx.fillStyle = col.light;
+      Utils.ell(ctx, hx - hr * 0.78, hy + hr * 0.12, hr * 0.09, hr * 0.16);
+      Utils.ell(ctx, hx + hr * 0.78, hy + hr * 0.12, hr * 0.09, hr * 0.16);
+    } else if (cfg.ears === 'chick') {
+      ctx.fillStyle = '#ef4f5f';
+      ctx.beginPath();
+      var teeth = 3, w2 = hr * 0.42, step = w2 / teeth;
+      ctx.moveTo(hx - w2 / 2, hy - hr * 0.1);
+      for (var k = 0; k <= teeth; k++) {
+        var x2 = hx - w2 / 2 + k * step;
+        ctx.quadraticCurveTo(x2 - step * 0.18, hy - hr * 0.5, x2, hy - hr * 0.1);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(239,79,95,0.4)';
+      Utils.ell(ctx, hx - hr * 0.6, hy + hr * 0.25, hr * 0.14, hr * 0.1);
+      Utils.ell(ctx, hx + hr * 0.6, hy + hr * 0.25, hr * 0.14, hr * 0.1);
     } else {
       ctx.fillStyle = col.dark;
       Utils.ell(ctx, hx - hr * 0.8, hy - hr * 0.35, hr * 0.14, hr * 0.14);
