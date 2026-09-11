@@ -573,9 +573,10 @@
               beh.pending = null;
             }
             else if (beh.wander && beh.t > 0) {
-              // 继续散步到下一个随机点
-              beh.tx = Utils.rand(0.12, 0.88);
-              beh.tz = Utils.rand(0.12, 0.85);
+              // 继续散步到下一个随机点（避开猫砂盆）
+              var nxt = self.randTarget();
+              beh.tx = nxt.tx;
+              beh.tz = nxt.tz;
             }
             else { beh.state = 'idle'; beh.t = Utils.rand(1.5, 4); }
           } else {
@@ -653,7 +654,13 @@
             pet.nextLitterAt = now + Utils.rand(6, 10) * 3600 * 1000;
             // 如厕让猫砂盆变脏（+10 脏度）
             self.litterDirt = Math.min(100, (self.litterDirt || 0) + 10);
-            beh.state = 'idle'; beh.t = Utils.rand(1, 3);
+            // 如厕完立刻走开到房间别处，不堵着猫砂盆
+            beh.state = 'walk';
+            beh.wander = true;
+            beh.t = Utils.rand(6, 12);
+            beh.tx = Utils.rand(0.12, 0.6);
+            beh.tz = Utils.rand(0.12, 0.8);
+            beh.pending = null;
           }
           break;
         }
@@ -684,8 +691,9 @@
           var zstep = 0.34 * dt / 1000;
           if (zd <= zstep) {
             pet.x = beh.tx; pet.z = beh.tz;
-            beh.tx = Utils.rand(0.12, 0.88);
-            beh.tz = Utils.rand(0.12, 0.85);
+            var zrt = self.randTarget();
+            beh.tx = zrt.tx;
+            beh.tz = zrt.tz;
             if (Math.random() < 0.3) self.burstHearts(pet, 1, '#ffd34d');
           } else {
             pet.x += zdx / zd * zstep;
@@ -741,7 +749,7 @@
           var fdx = pet.x - fa.x, fdz = pet.z - fa.z;
           var fd = Math.sqrt(fdx * fdx + fdz * fdz);
           var fstep = 0.30 * dt / 1000;
-          if (fd < 0.02) { beh.tx = Utils.rand(0.12, 0.88); beh.tz = Utils.rand(0.12, 0.85); }
+          if (fd < 0.02) { var rt0 = self.randTarget(); beh.tx = rt0.tx; beh.tz = rt0.tz; }
           else {
             beh.tx = Utils.clamp(pet.x + fdx / fd * 0.5, 0.12, 0.88);
             beh.tz = Utils.clamp(pet.z + fdz / fd * 0.5, 0.12, 0.85);
@@ -750,7 +758,7 @@
           var fd2 = Math.sqrt(fx2 * fx2 + fz2 * fz2);
           if (fd2 <= fstep) {
             pet.x = beh.tx; pet.z = beh.tz;
-            if (Math.random() < 0.2) { beh.tx = Utils.rand(0.12, 0.88); beh.tz = Utils.rand(0.12, 0.85); }
+            if (Math.random() < 0.2) { var rt1 = self.randTarget(); beh.tx = rt1.tx; beh.tz = rt1.tz; }
           } else {
             pet.x += fx2 / fd2 * fstep;
             pet.z += fz2 / fd2 * fstep;
@@ -814,6 +822,15 @@
     });
   };
 
+  // 生成随机目标点：避开猫砂盆区域（右上角），避免宠物老堵在盆边
+  Game.prototype.randTarget = function () {
+    for (var i = 0; i < 8; i++) {
+      var tx = Utils.rand(0.12, 0.88), tz = Utils.rand(0.12, 0.85);
+      if (!(tx > 0.72 && tz < 0.45)) return { tx: tx, tz: tz };
+    }
+    return { tx: Utils.rand(0.12, 0.6), tz: Utils.rand(0.3, 0.7) };
+  };
+
   Game.prototype.chooseBehavior = function (pet) {
     var beh = pet.beh;
     if (pet.energy < 12) {
@@ -837,8 +854,9 @@
     } else if (r < 0.50) {
       // 漫无目的地散步（约 20%）：连续走多个随机点
       beh.state = 'walk';
-      beh.tx = Utils.rand(0.12, 0.88);
-      beh.tz = Utils.rand(0.12, 0.85);
+      var wt = this.randTarget();
+      beh.tx = wt.tx;
+      beh.tz = wt.tz;
       beh.pending = null;
       beh.wander = true;
       beh.t = Utils.rand(40, 60);
@@ -989,8 +1007,9 @@
   Game.prototype.startZoomies = function (pet) {
     pet.beh.state = 'zoomies';
     pet.beh.t = Utils.rand(35, 50);
-    pet.beh.tx = Utils.rand(0.12, 0.88);
-    pet.beh.tz = Utils.rand(0.12, 0.85);
+    var zt = this.randTarget();
+    pet.beh.tx = zt.tx;
+    pet.beh.tz = zt.tz;
     pet.beh.wander = false;
     pet.beh.pending = null;
   };
@@ -1026,8 +1045,9 @@
     } else {
       // 走到房间某处趴下
       beh.state = 'walk';
-      beh.tx = Utils.rand(0.12, 0.88);
-      beh.tz = Utils.rand(0.12, 0.85);
+      var frt = this.randTarget();
+      beh.tx = frt.tx;
+      beh.tz = frt.tz;
       beh.pending = 'restFloor';
     }
   };
@@ -1400,6 +1420,11 @@
         else this.openTombModal(chip);
       }
       this.dragChip = true;
+      return;
+    }
+    // 铲屎快捷按钮（悬浮在猫砂盆上方，脏了才出现；优先级高于宠物，避免被挡）
+    if (this.litterDirt > 0 && this.litterBtnAt(x, y)) {
+      this.scoopLitter();
       return;
     }
     // 宠物（抚摸 / 选中 / 按住可拎起拖拽）
@@ -1891,6 +1916,13 @@
     var dx = x - p.x, dy = y - p.y;
     var r = 125 * p.sc;
     return dx * dx + dy * dy < r * r;
+  };
+
+  // 铲屎快捷按钮命中（悬浮在猫砂盆上方，几何与 render.drawLitter 一致）
+  Game.prototype.litterBtnAt = function (x, y) {
+    var p = Render.project(LAYOUT.litter.fx, LAYOUT.litter.fz);
+    var sx = p.x, sy = p.y - 104 * p.sc;
+    return Math.abs(x - sx) < 52 * p.sc && Math.abs(y - sy) < 20 * p.sc;
   };
 
   // 铲屎：清理干净并收集肥料（屎尿可加速植物生长）
