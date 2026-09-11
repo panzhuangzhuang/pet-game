@@ -454,6 +454,32 @@
     }
     // 标签
     Utils.drawText(ctx, '猫砂盆', sx, sy + 28 * sc, { size: 20 * Math.max(0.8, sc), color: '#8a6a45' });
+    // 铲屎快捷按钮（脏了才出现，悬浮在盆上方，点击即铲——避免被宠物挡住）
+    if (d > 0) {
+      var bW = 96 * sc, bH = 32 * sc;
+      var bX = sx - bW / 2, bY = sy - 104 * sc;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      Utils.roundRect(ctx, bX - 2 * sc, bY - 2 * sc, bW + 4 * sc, bH + 4 * sc, 9 * sc);
+      ctx.fill();
+      var bGrad = ctx.createLinearGradient(bX, bY, bX, bY + bH);
+      bGrad.addColorStop(0, d >= 80 ? '#ff8a65' : '#8bc34a');
+      bGrad.addColorStop(1, d >= 80 ? '#e53935' : '#689f38');
+      ctx.fillStyle = bGrad;
+      Utils.roundRect(ctx, bX, bY, bW, bH, 8 * sc);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold ' + Math.round(15 * sc) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧹 铲屎', sx, bY + bH / 2 + 1 * sc);
+      // 按钮轻微呼吸动画，提示可点击
+      if (d >= 80) {
+        var pulse = 0.5 + 0.5 * Math.sin(t * 3);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.4 * pulse) + ')';
+        ctx.lineWidth = 2 * sc;
+        Utils.roundRect(ctx, bX - 4 * sc, bY - 4 * sc, bW + 8 * sc, bH + 8 * sc, 11 * sc, null, true);
+      }
+    }
   }
 
   // ---------- 足球 ----------
