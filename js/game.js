@@ -119,8 +119,23 @@
       picked: { cat: true, dog: true, pig: false, cow: false, sheep: false, chick: false },
       startBtn: { x: 125, y: 1055, w: 500, h: 100 }
     };
+    // 货币系统：初始 100 金币；初次领养免费，之后领养一只 10 金币
+    this.coins = 100;
+    this.adoptedOnce = false;   // 是否已经完成过首次领养（全局本房间）
     this.resetAddPet();
   }
+
+  // 金币：花费（余额不足返回 false）
+  Game.prototype.spendCoins = function (n) {
+    n = Math.max(0, n | 0);
+    if (this.coins < n) return false;
+    this.coins -= n;
+    return true;
+  };
+  Game.prototype.addCoins = function (n) {
+    this.coins += Math.max(0, n | 0);
+    return true;
+  };
 
   Game.prototype.resetAddPet = function () {
     this.addpet = {
@@ -180,7 +195,9 @@
       fertilizer: this.fertilizer,
       store: this.store,
       lastBreedAt: this.lastBreedAt,
-      selectedId: this.selectedId
+      selectedId: this.selectedId,
+      coins: this.coins,
+      adoptedOnce: this.adoptedOnce
     };
     this.P.setStorage(this.saveKey, save);
   };
@@ -192,6 +209,8 @@
 
     if (this.demo && this.demo.skipSetup) {
       this.setupDone = true;
+      this.coins = 100;
+      this.adoptedOnce = false;
       this.pets = [
         Pets.createBuiltIn('cat', this.demo.name1 || '咪咪'),
         Pets.createBuiltIn('dog', this.demo.name2 || '旺财')
@@ -323,6 +342,9 @@
       if (delta > 3600 * 1000) {
         this.toastMsg('你离开了 ' + Utils.fmtDuration(delta) + '，宠物们很想你');
       }
+      // 货币（旧存档无 → 初始 100；是否首次领养过）
+      this.coins = (save.coins != null) ? save.coins : 100;
+      this.adoptedOnce = !!save.adoptedOnce;
       this.loadPhotoTextures();
       this.rebuildNests();
     } else {
@@ -906,6 +928,7 @@
       baby.baseWeight = 1;                       // 新生 1 斤，之后按每年 3 斤的节奏长
       baby.gender = Math.random() < 0.5 ? 'male' : 'female';
       baby.createdAt = now;
+      baby.born = true;                          // 出生宠物可卖 10 金币
       this.pets.push(baby);
     }
     this.lastBreedAt = now;
@@ -1162,6 +1185,52 @@
 
   Game.prototype.openPetModal = function (pet) {
     var self = this;
+    var row1 = [
+      {
+        label: pet.gender === 'male' ? '♂ 改母' : '♀ 改公', onTap: function () {
+          pet.gender = pet.gender === 'male' ? 'female' : 'male';
+          self.closeModal();
+          self.save();
+          self.toastMsg(pet.name + ' 现在是' + (pet.gender === 'male' ? '公' : '母') + '的啦');
+        }
+      },
+      {
+        label: '改名', onTap: function () {
+          self.closeModal();
+          self.P.textInput({ title: '给它改个名字', defaultValue: pet.name, maxLength: 8 }, function (val) {
+            if (val) { pet.name = val; self.rebuildNests(); self.save(); }
+          });
+        }
+      },
+      {
+        label: '抚摸它', onTap: function () {
+          self.closeModal();
+          if (pet.alive) self.pet(pet);
+        }
+      }
+    ];
+    var row2;
+    if (pet.born && pet.alive) {
+      // 繁殖出生的宠物可以卖 10 金币
+      row2 = [
+        {
+          label: '卖出 +10 金币', style: 'danger', onTap: function () {
+            self.closeModal();
+            self.sellPet(pet);
+          }
+        },
+        { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
+      ];
+    } else {
+      row2 = [
+        {
+          label: '放养', style: 'danger', onTap: function () {
+            self.openReleaseConfirm(pet);
+          }
+        },
+        { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
+      ];
+    }
     this.modal = {
       title: pet.name,
       lines: [
@@ -1170,37 +1239,25 @@
         '心情值：' + Math.round(Pets.happiness(pet)),
         pet.alive ? '每天记得照料它哦' : '它已经离开了……'
       ],
-      buttons: [
-        {
-          label: pet.gender === 'male' ? '♂ 改母' : '♀ 改公', onTap: function () {
-            pet.gender = pet.gender === 'male' ? 'female' : 'male';
-            self.closeModal();
-            self.save();
-            self.toastMsg(pet.name + ' 现在是' + (pet.gender === 'male' ? '公' : '母') + '的啦');
-          }
-        },
-        {
-          label: '改名', onTap: function () {
-            self.closeModal();
-            self.P.textInput({ title: '给它改个名字', defaultValue: pet.name, maxLength: 8 }, function (val) {
-              if (val) { pet.name = val; self.rebuildNests(); self.save(); }
-            });
-          }
-        },
-        {
-          label: '抚摸它', onTap: function () {
-            self.closeModal();
-            if (pet.alive) self.pet(pet);
-          }
-        },
-        {
-          label: '放养', style: 'danger', onTap: function () {
-            self.openReleaseConfirm(pet);
-          }
-        },
-        { label: '关闭', style: 'ghost', onTap: function () { self.closeModal(); } }
-      ]
+      rows: [row1, row2]
     };
+  };
+
+  // 卖出出生宠物：得 10 金币，宠物离开小屋
+  Game.prototype.sellPet = function (pet) {
+    this.pets = this.pets.filter(function (p) { return p.id !== pet.id; });
+    if (this.selectedId === pet.id) this.selectedId = null;
+    this.addCoins(10);
+    this.closeModal();
+    this.rebuildNests();
+    this.save();
+    this.toastMsg(pet.name + ' 卖出啦，+10 金币（现在 ' + this.coins + ' 金币）');
+  };
+
+  // 卖出池塘水族：每 100 克 1 金币，多余四舍五入
+  Game.prototype.pondSellPrice = function (p) {
+    var wg = Pets.pondWeight(p, Date.now());
+    return Math.round(wg / 100);
   };
 
   // 放养确认：不可逆，先让玩家确认
@@ -1243,7 +1300,10 @@
         '· 照片领养的伙伴是独一无二的定制宠物，不参与繁殖',
         '· 抚摸：点按或滑动宠物，它会很开心',
         '· 铲屎：点一下猫砂盆清理，不铲的话宠物睡不好觉，三天精力就会耗尽',
-        '· 版本 v10 · 更新缓存后请重开页面'
+        '· 金币：初始 100，初次领养免费，之后领养一只 10 金币',
+        '· 卖出：成熟植物 2 金币 · 出生宠物 10 金币 · 池塘动物每 100 克 1 金币',
+        '· 商店：主界面底部"商店"按钮，种子 1 金币/颗',
+        '· 版本 v22 · 更新缓存后请重开页面'
       ],
       buttons: [
         { label: '知道了', onTap: function () { self.closeModal(); } }
@@ -1274,6 +1334,7 @@
     if (this.screen === 'yard') { this.yardHit(x, y); return; }
     if (this.screen === 'pond') { this.pondHit(x, y); return; }
     if (this.screen === 'store') { this.storeHit(x, y); return; }
+    if (this.screen === 'shop') { this.shopHit(x, y); return; }
 
     // 主界面：底部按钮
     var btns = LAYOUT.buttons;
@@ -1428,6 +1489,7 @@
     else if (id === 'water') this.water();
     else if (id === 'rest') this.rest();
     else if (id === 'add') { this.resetAddPet(); this.screen = 'addpet'; }
+    else if (id === 'shop') { this.screen = 'shop'; }
     else if (id === 'help') this.openHelp();
   };
 
@@ -1563,12 +1625,37 @@
       var now = Date.now();
       if (pl) {
         if (Pets.plantMature(pl, now)) {
-          // 收获：种子 +1、农产品 +2（可去仓库加工成粮）
-          this.seeds[pl.type] = (this.seeds[pl.type] || 0) + 1;
-          this.store.crops[pl.type] = (this.store.crops[pl.type] || 0) + 2;
-          this.yard[j] = null;
-          this.save();
-          this.toastMsg('收获了' + Pets.plantLabel(pl.type) + '！种子+1，农产品×2（可去仓库加工成粮）');
+          // 成熟：收获（种子 +1、农产品 ×2）或卖出（2 金币）
+          var self2 = this;
+          this.modal = {
+            title: Pets.plantLabel(pl.type) + ' 成熟啦！',
+            lines: [
+              '收获：种子 +1、农产品 ×2（可去仓库加工成粮）',
+              '卖出：直接换 2 金币'
+            ],
+            buttons: [
+              {
+                label: '收获', onTap: function () {
+                  self2.seeds[pl.type] = (self2.seeds[pl.type] || 0) + 1;
+                  self2.store.crops[pl.type] = (self2.store.crops[pl.type] || 0) + 2;
+                  self2.yard[j] = null;
+                  self2.closeModal();
+                  self2.save();
+                  self2.toastMsg('收获了' + Pets.plantLabel(pl.type) + '！种子+1，农产品×2（可去仓库加工成粮）');
+                }
+              },
+              {
+                label: '卖出 +2 金币', style: 'danger', onTap: function () {
+                  self2.addCoins(2);
+                  self2.yard[j] = null;
+                  self2.closeModal();
+                  self2.save();
+                  self2.toastMsg('卖出了' + Pets.plantLabel(pl.type) + '，+2 金币（现在 ' + self2.coins + ' 金币）');
+                }
+              },
+              { label: '取消', style: 'ghost', onTap: function () { self2.closeModal(); } }
+            ]
+          };
         } else {
           if (this.selectedTool === 'shovel') {
             // 铲除未长好的植物：腾出地块，返还种子
@@ -1634,7 +1721,7 @@
       this.toastMsg(this.selectedNet ? '捞网拿起来啦！点水族可以捞出来腾位置' : '放下捞网');
       return;
     }
-    // 点水族：捞网模式捞出，否则显示信息
+    // 点水族：捞网模式捞出，否则显示信息/卖出
     var t = this.time / 1000;
     for (var i = 0; i < this.pond.length; i++) {
       var pos = this.pondPos(i, t);
@@ -1648,8 +1735,33 @@
           this.save();
           this.toastMsg('捞出了' + Pets.pondLabel(out.species) + '！池塘空出位置啦（' + this.pond.length + '/8）');
         } else {
-          var wg = Math.round(Pets.pondWeight(this.pond[i], Date.now()));
-          this.toastMsg(Pets.pondLabel(this.pond[i].species) + ' 现在 ' + wg + 'g（点右上角捞网可捞出腾位置）');
+          // 点水族：可卖出（每 100g 1 金币，四舍五入）
+          var self2 = this;
+          var wg2 = Math.round(Pets.pondWeight(this.pond[i], Date.now()));
+          var price2 = this.pondSellPrice(this.pond[i]);
+          (function (idx) {
+            var p0 = self2.pond[idx];
+            var label0 = Pets.pondLabel(p0.species);
+            self2.modal = {
+              title: label0 + ' ' + wg2 + 'g',
+              lines: [
+                '现在 ' + wg2 + ' 克，可以卖出换 ' + price2 + ' 金币',
+                '（每 100 克 1 金币，四舍五入）'
+              ],
+              buttons: [
+                {
+                  label: '卖出 +' + price2 + ' 金币', style: 'danger', onTap: function () {
+                    self2.addCoins(price2);
+                    self2.pond.splice(idx, 1);
+                    self2.closeModal();
+                    self2.save();
+                    self2.toastMsg('卖出了' + label0 + '，+' + price2 + ' 金币（现在 ' + self2.coins + ' 金币）');
+                  }
+                },
+                { label: '取消', style: 'ghost', onTap: function () { self2.closeModal(); } }
+              ]
+            };
+          })(i);
         }
         return;
       }
@@ -1661,9 +1773,12 @@
           this.toastMsg('池塘最多养 8 只');
           return;
         }
+        // 买入：1 金币
+        if (this.coins < 1) { this.toastMsg('金币不够啦（买入需要 1 金币）'); return; }
+        this.coins -= 1;
         this.pond.push({ species: k, createdAt: Date.now() });
         this.save();
-        this.toastMsg('领养了一只' + Pets.pondLabel(k) + '！初始 100 克，每年涨 100 克');
+        this.toastMsg('领养了一只' + Pets.pondLabel(k) + '！-1 金币，初始 100 克，每年涨 100 克（现在 ' + this.coins + ' 金币）');
       }
     }, this);
   };
@@ -1694,6 +1809,26 @@
       this.save();
       this.toastMsg('用 1 份粮把粮碗添满啦');
       return;
+    }
+  };
+
+  // 商店点击：返回院子 / 买种子（1 金币/颗）
+  Game.prototype.shopHit = function (x, y) {
+    if (x >= 20 && x <= 150 && y >= 40 && y <= 102) {
+      this.screen = 'yard';
+      return;
+    }
+    for (var i = 0; i < Pets.PLANT_ORDER.length; i++) {
+      var k = Pets.PLANT_ORDER[i];
+      var card = { x: 30 + i * 120, y: 260, w: 108, h: 190 };
+      if (inRect(x, y, card)) {
+        if (this.coins < 1) { this.toastMsg('金币不够啦（种子 1 金币/颗）'); return; }
+        this.coins -= 1;
+        this.seeds[k] = (this.seeds[k] || 0) + 1;
+        this.save();
+        this.toastMsg('买到了 1 颗' + Pets.plantLabel(k) + '种子！-1 金币（现在 ' + this.coins + ' 金币）');
+        return;
+      }
     }
   };
 
@@ -2045,18 +2180,24 @@
   Game.prototype.adoptBuiltIn = function (species) {
     var self = this;
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
+    // 货币：初次领养免费，之后每次 10 金币
+    if (this.adoptedOnce && this.coins < 10) { this.toastMsg('金币不够啦（领养需要 10 金币，还差 ' + (10 - this.coins) + '）'); return; }
     var spInfo = Pets.SPECIES[species] || Pets.SPECIES.cat;
     var def = '新' + spInfo.label;
     this.P.textInput({ title: '给' + spInfo.label + '起个名字', defaultValue: def, maxLength: 8 }, function (val) {
       var name = (val || '').trim() || def;
       var pet = Pets.createBuiltIn(species, name);
       if (self.addpet.gender) pet.gender = self.addpet.gender;   // 领养时手动选的性别
+      // 扣金币（首次免费）
+      var first = !self.adoptedOnce;
+      if (first) { self.adoptedOnce = true; }
+      else { self.coins -= 10; }
       self.pets.push(pet);
       self.selectedId = pet.id;
       self.screen = 'main';
       self.rebuildNests();
       self.save();
-      self.toastMsg('欢迎 ' + name + ' 加入小屋！');
+      self.toastMsg('欢迎 ' + name + ' 加入小屋！' + (first ? '（首次领养免费）' : '（-10 金币）'));
     });
   };
 
@@ -2078,17 +2219,22 @@
     if (!a.photo) { this.toastMsg('请先选择一张照片'); return; }
     if (!a.species) { this.toastMsg('请选择照片伙伴的物种（必选）'); return; }
     if (this.pets.length >= MAX_PETS) { this.toastMsg('小屋已经住满啦'); return; }
+    // 货币：初次领养免费，之后每次 10 金币
+    if (this.adoptedOnce && this.coins < 10) { this.toastMsg('金币不够啦（领养需要 10 金币，还差 ' + (10 - this.coins) + '）'); return; }
     var name = (a.name || '').trim() || '我的宠物';
     var pet = Pets.createFromPhoto(name, a.species, a.photo.dataURL, a.photo.colors);
     pet.avatar.texture = a.photo.texture;
     if (a.gender) pet.gender = a.gender;              // 领养时手动选的性别
+    var first = !this.adoptedOnce;
+    if (first) { this.adoptedOnce = true; }
+    else { this.coins -= 10; }
     this.pets.push(pet);
     this.selectedId = pet.id;
     this.resetAddPet();
     this.screen = 'main';
     this.rebuildNests();
     this.save();
-    this.toastMsg('欢迎 ' + name + ' 加入小屋！');
+    this.toastMsg('欢迎 ' + name + ' 加入小屋！' + (first ? '（首次领养免费）' : '（-10 金币）'));
   };
 
   // ---------------- 渲染 ----------------
@@ -2108,6 +2254,8 @@
       Render.drawPond(ctx, this);
     } else if (this.screen === 'store') {
       Render.drawStore(ctx, this);
+    } else if (this.screen === 'shop') {
+      Render.drawShop(ctx, this);
     } else {
       this.renderMain(ctx);
     }
