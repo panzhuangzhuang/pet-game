@@ -1630,7 +1630,23 @@
     // 捞网按钮（右上角）
     var netSel = !!game.selectedNet;
     Utils.roundRect(ctx, 620, 40, 110, 62, 14, netSel ? '#fff2d6' : 'rgba(160,210,255,0.95)', netSel ? '#e05555' : '#4aa3df');
-    Utils.drawText(ctx, netSel ? '捞网中' : '🪝 捞网', 675, 76, { size: 22, weight: 'bold', color: netSel ? '#d03f3f' : '#2a5a8a' });
+    // 自绘捞网图标（不依赖 emoji 字体，老系统也正常）
+    var nc = netSel ? '#d03f3f' : '#2a5a8a';
+    ctx.strokeStyle = nc;
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(646, 72, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(634, 72); ctx.lineTo(658, 72);
+    ctx.moveTo(646, 60); ctx.lineTo(646, 84);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(646 + 10, 82);
+    ctx.lineTo(646 + 24, 96);
+    ctx.stroke();
+    Utils.drawText(ctx, netSel ? '捞网中' : '捞网', 690, 76, { size: 22, weight: 'bold', color: nc });
     // 标题
     Utils.drawText(ctx, '小池塘 🐟', 375, 80, { size: 34, weight: 'bold', color: '#fff' });
     Utils.drawText(ctx, '初始 100 克 · 每年涨 100 克 · 最多 8 只', 375, 116, { size: 17, color: 'rgba(255,255,255,0.95)' });
