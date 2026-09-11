@@ -454,8 +454,8 @@
     }
     // 标签
     Utils.drawText(ctx, '猫砂盆', sx, sy + 28 * sc, { size: 20 * Math.max(0.8, sc), color: '#8a6a45' });
-    // 铲屎快捷按钮（脏了才出现，悬浮在盆上方，点击即铲——避免被宠物挡住）
-    if (d > 0) {
+    // 铲屎快捷按钮（攒够 10 脏度才出现，悬浮在盆上方，点击即铲——避免被宠物挡住）
+    if (d >= 10) {
       var bW = 96 * sc, bH = 32 * sc;
       var bX = sx - bW / 2, bY = sy - 104 * sc;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
