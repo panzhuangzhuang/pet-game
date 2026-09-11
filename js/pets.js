@@ -260,7 +260,8 @@
       alive: pet.alive, diedAt: pet.diedAt,
       x: pet.x, z: pet.z, facing: pet.facing, eatSide: pet.eatSide,
       beh: pet.beh,
-      gender: pet.gender, baseWeight: pet.baseWeight, nextLitterAt: pet.nextLitterAt
+      gender: pet.gender, baseWeight: pet.baseWeight, nextLitterAt: pet.nextLitterAt,
+      born: pet.born
     };
   };
 
@@ -272,6 +273,7 @@
     if (!p.gender) p.gender = Math.random() < 0.5 ? 'male' : 'female';
     if (p.baseWeight == null) p.baseWeight = 3;
     if (!p.nextLitterAt) p.nextLitterAt = Utils.now() + Utils.rand(2, 8) * H;
+    if (p.born == null) p.born = false;   // 是否繁殖出生（出生宠物可卖 10 金币）
     return p;
   };
 
