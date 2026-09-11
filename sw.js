@@ -1,6 +1,6 @@
 /* 瀹犵墿灏忓眿 Service Worker锛氱紦瀛樺叏閮ㄦ父鎴忔枃浠讹紝鏀寔绂荤嚎涓?娣诲姞鍒颁富灞忓箷"浣撻獙 */
 'use strict';
-var CACHE = 'pet-house-v19';
+var CACHE = 'pet-house-v20';
 var ASSETS = [
   './preview.html',
   './manifest.json',
