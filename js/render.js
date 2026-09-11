@@ -742,15 +742,23 @@
 
   function drawStatusRow(ctx, x, cy, barW, val, icon, color, mini) {
     if (mini) {
-      // 紧凑模式：细条 + 条内白色百分比（两行卡空间有限，不加图标）
+      // 紧凑模式：细条 + 条内白色百分比（加大字号 + 深色描边，任何底色都清晰）
       var mbx = x, mbw = barW;
-      ctx.fillStyle = 'rgba(0,0,0,0.08)';
-      Utils.roundRect(ctx, mbx, cy - 3, mbw, 7, 3.5);
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      Utils.roundRect(ctx, mbx, cy - 4, mbw, 8, 4);
       if (val > 0) {
         ctx.fillStyle = color;
-        Utils.roundRect(ctx, mbx, cy - 3, Math.max(3, mbw * val / 100), 7, 3.5);
+        Utils.roundRect(ctx, mbx, cy - 4, Math.max(3, mbw * val / 100), 8, 4);
       }
-      Utils.drawText(ctx, Math.round(val) + '%', mbx + mbw / 2, cy + 2, { size: 9, weight: 'bold', align: 'center', color: '#fff' });
+      var pct = Math.round(val) + '%';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(40,25,10,0.85)';
+      ctx.strokeText(pct, mbx + mbw / 2, cy + 1);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(pct, mbx + mbw / 2, cy + 1);
       return;
     }
     drawIcon(ctx, icon, x + 9, cy, color);
@@ -761,7 +769,7 @@
       ctx.fillStyle = color;
       Utils.roundRect(ctx, bx, cy - 4, Math.max(5, bw * val / 100), 9, 4);
     }
-    Utils.drawText(ctx, Math.round(val) + '%', x + 24 + bw + 48, cy + 1, { size: 15, align: 'right', color: '#8a6a45' });
+    Utils.drawText(ctx, Math.round(val) + '%', x + 24 + bw + 48, cy + 1, { size: 16, weight: 'bold', align: 'right', color: '#5a4030' });
   }
 
   function drawMiniFace(ctx, x, y, mood) {
