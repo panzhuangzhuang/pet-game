@@ -345,6 +345,21 @@
       // 货币（旧存档无 → 初始 120；是否首次领养过）
       this.coins = (save.coins != null) ? save.coins : 120;
       this.adoptedOnce = !!save.adoptedOnce;
+      // 存档位置保险：若超过 7 成宠物挤在右半且数量≥4，把其中一半随机散到左半
+      // （避免"上次恰好聚在右侧"的存档加载后看起来死板；不影响玩家正常布局）
+      (function (g) {
+        var right = g.pets.filter(function (p) { return p.alive && p.x > 0.55; });
+        var alive = g.pets.filter(function (p) { return p.alive; });
+        if (alive.length >= 4 && right.length >= Math.ceil(alive.length * 0.7)) {
+          var half = Math.max(1, Math.floor(right.length / 2));
+          for (var ri = 0; ri < half; ri++) {
+            var p = right[ri];
+            p.x = Utils.rand(0.1, 0.45);
+            p.z = Utils.rand(0.15, 0.8);
+            p.beh = { state: 'idle', t: 0, tx: 0, tz: 0, pending: null, manual: false };
+          }
+        }
+      })(this);
       this.loadPhotoTextures();
       this.rebuildNests();
     } else {
@@ -608,6 +623,16 @@
           beh.t -= dt / 1000;
           if (self.litterDirt < 100) {
             pet.energy = Math.min(100, pet.energy + dt / 1000 * 0.15);
+          }
+          // 休息中偶尔翻个身挪个窝，画面更生动（不打断休息状态）
+          beh.restMove = (beh.restMove || 0) + dt;
+          if (beh.restMove > 9000) {
+            beh.restMove = 0;
+            if (Math.random() < 0.6) {
+              pet.x = Utils.clamp(pet.x + Utils.rand(-0.07, 0.07), 0.08, 0.92);
+              pet.z = Utils.clamp(pet.z + Utils.rand(-0.05, 0.05), 0.08, 0.90);
+              if (Math.abs(pet.x - (pet.prevRestX || pet.x)) > 0.001) pet.facing = Utils.rand(0, 1) < 0.5 ? -1 : 1;
+            }
           }
           if (beh.t <= 0) { beh.state = 'idle'; beh.t = Utils.rand(1, 3); }
           break;
