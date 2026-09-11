@@ -268,6 +268,11 @@
   Pets.fromJSON = function (obj) {
     var p = obj;
     if (!p.beh) p.beh = freshBeh();
+    // 头像防御：缺失/损坏时回退为内置外观（避免渲染中断）
+    if (!p.avatar || !p.avatar.type) {
+      var sp = Pets.SPECIES[p.species] || Pets.SPECIES.cat;
+      p.avatar = { type: 'builtin', style: p.species, colors: sp.colors, texture: null };
+    }
     if (p.avatar && p.avatar.type === 'photo') p.avatar.texture = null;
     // 旧存档兼容
     if (!p.gender) p.gender = Math.random() < 0.5 ? 'male' : 'female';
