@@ -26,11 +26,12 @@
     litter: { fx: 0.86, fz: 0.28 },
     barTop: 1202, barH: 132,
     buttons: [
-      { id: 'feed', x: 20, y: 1218, w: 140, h: 96, label: '喂食' },
-      { id: 'water', x: 172, y: 1218, w: 140, h: 96, label: '喝水' },
-      { id: 'rest', x: 324, y: 1218, w: 140, h: 96, label: '休息' },
-      { id: 'add', x: 476, y: 1218, w: 122, h: 96, label: '添加' },
-      { id: 'help', x: 610, y: 1218, w: 120, h: 96, label: '帮助' }
+      { id: 'feed', x: 16, y: 1218, w: 118, h: 96, label: '喂食' },
+      { id: 'water', x: 138, y: 1218, w: 118, h: 96, label: '喝水' },
+      { id: 'rest', x: 260, y: 1218, w: 118, h: 96, label: '休息' },
+      { id: 'add', x: 382, y: 1218, w: 118, h: 96, label: '添加' },
+      { id: 'shop', x: 504, y: 1218, w: 118, h: 96, label: '商店' },
+      { id: 'help', x: 626, y: 1218, w: 108, h: 96, label: '帮助' }
     ]
   };
 
@@ -871,8 +872,8 @@
 
   // ---------- 底部操作栏 ----------
   function drawActionBar(ctx, game) {
-    // 提示（浅色底条更醒目）
-    var tipText = '点碗添粮添水 · 点按/滑动宠物抚摸 · 记得每天照料';
+    // 提示（浅色底条更醒目）+ 金币
+    var tipText = '🪙 ' + game.coins + ' · 点碗添粮添水 · 点按/滑动宠物抚摸 · 记得每天照料';
     var tw = Utils.measure(ctx, tipText, 20) + 44;
     Utils.roundRect(ctx, (W - tw) / 2, LAYOUT.barTop - 36, tw, 36, 18, 'rgba(255,255,255,0.6)');
     Utils.drawText(ctx, tipText, 375, LAYOUT.barTop - 13, { size: 20, color: '#a0805a' });
@@ -948,6 +949,20 @@
         ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
         ctx.stroke();
         break;
+      case 'shop': { // 购物袋
+        ctx.beginPath();
+        ctx.moveTo(cx - 12, cy + 2);
+        ctx.lineTo(cx + 12, cy + 2);
+        ctx.lineTo(cx + 9, cy + 13);
+        ctx.lineTo(cx - 9, cy + 13);
+        ctx.closePath();
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy - 1, 7, Math.PI, 0);
+        ctx.stroke();
+        break;
+      }
       case 'help':
         Utils.drawText(ctx, '?', cx, cy + 1, { size: 30, weight: 'bold', color: color });
         break;
@@ -1098,6 +1113,9 @@
     ctx.fillRect(0, 0, W, H);
     Utils.drawText(ctx, '领养新伙伴', 375, 92, { size: 42, weight: 'bold', color: '#8a5a33' });
     Utils.drawText(ctx, '上传一张照片，渲染成专属 3D 形象', 375, 136, { size: 22, color: '#a0805a' });
+    // 金币提示（首次领养免费，之后 10 金币/只）
+    Utils.roundRect(ctx, 250, 152, 250, 34, 17, 'rgba(255,214,102,0.95)', '#d9a520');
+    Utils.drawText(ctx, '🪙 ' + game.coins + (game.adoptedOnce ? ' · 领养需 10 金币' : ' · 首次领养免费'), 375, 175, { size: 16, weight: 'bold', color: '#8a5a00' });
 
     // 返回
     var back = game.addpet.backBtn;
@@ -1433,6 +1451,9 @@
     Utils.drawText(ctx, '小院子 🌻', 375, 80, { size: 34, weight: 'bold', color: '#5a7a3f' });
     Utils.drawText(ctx, '种子初始每种 1 颗 · 收获可得新种子 · 成熟 30 天', 375, 116, { size: 17, color: '#8a5a33' });
     Utils.drawText(ctx, '💩 肥料 ×' + game.fertilizer + ' · 铲屎可得 · 1 坨加速植物 1 天', 375, 142, { size: 16, color: '#8a5a33' });
+    // 金币（池塘按钮旁）
+    Utils.roundRect(ctx, 618, 108, 114, 40, 20, 'rgba(255,214,102,0.95)', '#d9a520');
+    Utils.drawText(ctx, '🪙 ' + game.coins, 675, 134, { size: 20, weight: 'bold', color: '#8a5a00' });
 
     // 左侧粮仓小屋（点击进仓库：加工粮 / 存粮）
     var gx = 25, gy = 720, gw = 160, gh = 100;
@@ -1650,6 +1671,9 @@
     // 标题
     Utils.drawText(ctx, '小池塘 🐟', 375, 80, { size: 34, weight: 'bold', color: '#fff' });
     Utils.drawText(ctx, '初始 100 克 · 每年涨 100 克 · 最多 8 只', 375, 116, { size: 17, color: 'rgba(255,255,255,0.95)' });
+    // 金币显示
+    Utils.roundRect(ctx, 300, 130, 150, 40, 20, 'rgba(255,214,102,0.95)', '#d9a520');
+    Utils.drawText(ctx, '🪙 ' + game.coins, 375, 156, { size: 20, weight: 'bold', color: '#8a5a00' });
 
     // 水族（网格分布 + 游动动画，位置与点击命中共用 game.pondPos）
     var now = Date.now();
@@ -1687,7 +1711,7 @@
       Utils.roundRect(ctx, card.x, card.y, card.w, card.h, 14, 'rgba(230,244,255,0.92)', '#4aa3df');
       Utils.drawText(ctx, d3.emoji, card.x + card.w / 2, card.y + 52, { size: 44 });
       Utils.drawText(ctx, '领养' + d3.label, card.x + card.w / 2, card.y + 92, { size: 22, weight: 'bold', color: '#2a5a8a' });
-      Utils.drawText(ctx, '初始 100g', card.x + card.w / 2, card.y + 124, { size: 16, color: '#5a8ab0' });
+      Utils.drawText(ctx, '1 金币 · 初始 100g', card.x + card.w / 2, card.y + 124, { size: 16, color: '#5a8ab0' });
     });
   }
 
@@ -1740,6 +1764,50 @@
     Utils.drawText(ctx, '🍚 添粮到粮碗', 555, 1100, { size: 26, weight: 'bold', color: '#fff' });
   }
 
+  // ---------- 商店（种子购买 1 金币/颗） ----------
+  function drawShop(ctx, game) {
+    // 背景（木屋商店风）
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#fff6e0');
+    bg.addColorStop(1, '#f3ddb8');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    // 木地板条纹
+    ctx.strokeStyle = 'rgba(140,90,40,0.18)';
+    ctx.lineWidth = 3;
+    for (var f = 0; f < 12; f++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 240 + f * 90);
+      ctx.lineTo(W, 240 + f * 90);
+      ctx.stroke();
+    }
+    // 返回按钮
+    Utils.roundRect(ctx, 20, 40, 130, 62, 14, '#fff', '#c9a86a');
+    Utils.drawText(ctx, '← 院子', 85, 76, { size: 26, weight: 'bold', color: '#6b4a35' });
+    // 标题 + 金币
+    Utils.drawText(ctx, '🛒 商店', 360, 80, { size: 34, weight: 'bold', color: '#6b4a35' });
+    Utils.roundRect(ctx, 510, 44, 190, 54, 27, 'rgba(255,214,102,0.95)', '#d9a520');
+    Utils.drawText(ctx, '🪙 ' + game.coins, 605, 78, { size: 26, weight: 'bold', color: '#8a5a00' });
+    Utils.drawText(ctx, '种子 1 金币/颗 · 点击卡片购买', 375, 135, { size: 18, color: '#8a5a33' });
+    // 卖出说明
+    Utils.roundRect(ctx, 25, 160, 700, 66, 14, 'rgba(255,255,255,0.85)', '#e0c89a');
+    Utils.drawText(ctx, '💡 卖出：成熟植物 2 金币 · 出生宠物 10 金币 · 池塘动物每 100 克 1 金币', 375, 196, { size: 17, color: '#8a5a33' });
+
+    // 六种种子卡
+    var order = Pets_PLANT_ORDER || ['orchid', 'corn', 'peach', 'peanut', 'watermelon', 'banana'];
+    for (var i = 0; i < order.length; i++) {
+      var k = order[i];
+      var def = Pets_plantInfo[k] || { emoji: '🌱', label: k };
+      var cx = 30 + i * 120;
+      Utils.roundRect(ctx, cx, 260, 108, 190, 14, 'rgba(255,255,255,0.92)', '#d9b98c');
+      Utils.drawText(ctx, def.emoji, cx + 54, 340, { size: 46 });
+      Utils.drawText(ctx, def.label, cx + 54, 385, { size: 21, color: '#6b4a35' });
+      Utils.roundRect(ctx, cx + 14, 395, 80, 34, 17, '#ffb347', '#ff8f3f');
+      Utils.drawText(ctx, '1 金币', cx + 54, 418, { size: 18, weight: 'bold', color: '#fff' });
+      Utils.drawText(ctx, '已有 ×' + (game.seeds[k] || 0), cx + 54, 442, { size: 15, color: '#a0805a' });
+    }
+  }
+
   // 供 game 使用
   var Render = {
     LAYOUT: LAYOUT,
@@ -1756,6 +1824,7 @@
     drawYard: drawYard,
     drawPond: drawPond,
     drawStore: drawStore,
+    drawShop: drawShop,
     drawTombstone: drawTombstone,
     drawPet: drawPet,
     drawParticles: drawParticles,
