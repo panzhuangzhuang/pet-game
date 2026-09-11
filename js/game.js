@@ -1422,8 +1422,8 @@
       this.dragChip = true;
       return;
     }
-    // 铲屎快捷按钮（悬浮在猫砂盆上方，脏了才出现；优先级高于宠物，避免被挡）
-    if (this.litterDirt > 0 && this.litterBtnAt(x, y)) {
+    // 铲屎快捷按钮（悬浮在猫砂盆上方，攒够才出现；优先级高于宠物，避免被挡）
+    if (this.litterDirt >= 10 && this.litterBtnAt(x, y)) {
       this.scoopLitter();
       return;
     }
@@ -1927,15 +1927,20 @@
 
   // 铲屎：清理干净并收集肥料（屎尿可加速植物生长）
   Game.prototype.scoopLitter = function () {
-    if (this.litterDirt <= 0) {
-      this.toastMsg('猫砂盆很干净，暂时不用铲');
+    if (this.litterDirt < 10) {
+      this.toastMsg('猫砂盆还很干净，攒一攒再铲吧');
       return;
     }
-    var gain = Math.max(1, Math.floor(this.litterDirt / 20));
+    // 每 20 脏度 = 1 坨肥料（10~19 脏清理但不产肥，杜绝"铲了立刻又涨 0.0008 白拿 1 坨"的无限刷）
+    var gain = Math.floor(this.litterDirt / 20);
     this.litterDirt = 0;
-    this.fertilizer += gain;
+    if (gain > 0) {
+      this.fertilizer += gain;
+      this.toastMsg('铲屎完成！收获 ' + gain + ' 坨肥料（可在院子里施肥，1 坨加速 1 天）');
+    } else {
+      this.toastMsg('猫砂盆清理干净啦（还差一点才够一坨肥料）');
+    }
     this.save();
-    this.toastMsg('铲屎完成！收获 ' + gain + ' 坨肥料（可在院子里施肥，1 坨加速 1 天）');
   };
 
   // ---------------- 后台：时间快进 ----------------
