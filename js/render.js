@@ -1115,7 +1115,7 @@
     Utils.drawText(ctx, '上传一张照片，渲染成专属 3D 形象', 375, 136, { size: 22, color: '#a0805a' });
     // 金币提示（首次领养免费，之后 10 金币/只）
     Utils.roundRect(ctx, 250, 152, 250, 34, 17, 'rgba(255,214,102,0.95)', '#d9a520');
-    Utils.drawText(ctx, '🪙 ' + game.coins + (game.adoptedOnce ? ' · 领养需 10 金币' : ' · 首次领养免费'), 375, 175, { size: 16, weight: 'bold', color: '#8a5a00' });
+    Utils.drawText(ctx, '🪙 ' + game.coins + (game.adoptedOnce ? ' · 领养需 8 金币' : ' · 首次领养免费'), 375, 175, { size: 16, weight: 'bold', color: '#8a5a00' });
 
     // 返回
     var back = game.addpet.backBtn;
@@ -1791,7 +1791,7 @@
     Utils.drawText(ctx, '种子 1 金币/颗 · 点击卡片购买', 375, 135, { size: 18, color: '#8a5a33' });
     // 卖出说明
     Utils.roundRect(ctx, 25, 160, 700, 66, 14, 'rgba(255,255,255,0.85)', '#e0c89a');
-    Utils.drawText(ctx, '💡 卖出：成熟植物 2 金币 · 出生宠物 10 金币 · 池塘动物每 100 克 1 金币', 375, 196, { size: 17, color: '#8a5a33' });
+    Utils.drawText(ctx, '💡 卖出：成熟植物 3 金币 · 出生宠物 12 金币 · 池塘动物每 100 克 1 金币', 375, 196, { size: 17, color: '#8a5a33' });
 
     // 六种种子卡
     var order = Pets_PLANT_ORDER || ['orchid', 'corn', 'peach', 'peanut', 'watermelon', 'banana'];
@@ -1857,3 +1857,4 @@
 
   return Render;
 });
+
