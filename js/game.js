@@ -178,7 +178,9 @@
       seeds: this.seeds,
       pond: this.pond,
       fertilizer: this.fertilizer,
-      store: this.store
+      store: this.store,
+      lastBreedAt: this.lastBreedAt,
+      selectedId: this.selectedId
     };
     this.P.setStorage(this.saveKey, save);
   };
@@ -303,6 +305,20 @@
         if (Pets.checkDeath(p, now)) self.onPetDied(p);
       });
       this.lastSavedAt = now;
+      // 繁殖冷却（旧存档无该字段 → 0，视为从未生过，可立即配对）
+      this.lastBreedAt = save.lastBreedAt != null ? save.lastBreedAt : 0;
+      // 记住上次选中的宠物（旧存档无 → 选第一只活的）
+      this.selectedId = null;
+      if (save.selectedId) {
+        for (var si = 0; si < this.pets.length; si++) {
+          if (this.pets[si].alive && this.pets[si].id === save.selectedId) { this.selectedId = save.selectedId; break; }
+        }
+      }
+      if (!this.selectedId) {
+        for (var si2 = 0; si2 < this.pets.length; si2++) {
+          if (this.pets[si2].alive) { this.selectedId = this.pets[si2].id; break; }
+        }
+      }
       this.screen = 'main';
       if (delta > 3600 * 1000) {
         this.toastMsg('你离开了 ' + Utils.fmtDuration(delta) + '，宠物们很想你');
@@ -471,6 +487,11 @@
       Pets.update(pet, dt);
       var beh = pet.beh;
 
+      // 猫砂盆脏满：宠物睡不好，精力额外消耗（3 天掉完），睡眠也不再恢复
+      if (self.litterDirt >= 100) {
+        pet.energy = Math.max(0, pet.energy - dt * (100 / (3 * 86400000)));
+      }
+
       // 如厕（一天约 3 次）：到点就放下手头的事去猫砂盆
       if (now >= (pet.nextLitterAt || 0) && beh.pending !== 'litter' &&
           beh.state !== 'litter' && beh.state !== 'eat' && beh.state !== 'drink' && beh.state !== 'dead') {
@@ -484,10 +505,10 @@
         beh.manual = false;
       }
 
-      // 睡觉恢复精力（手动休息 / 精力低自动入睡都恢复；猫砂盆脏满时睡不好，恢复失效）
+      // 睡觉恢复精力（手动休息 / 精力低自动入睡都恢复；猫砂盆脏满时睡不好，不恢复且额外掉精力）
       if (beh.state === 'sleep') {
         if (self.litterDirt < 100) {
-          pet.energy = Math.min(100, pet.energy + dt / 1000 * 15);
+          pet.energy = Math.min(100, pet.energy + dt / 1000 * 1.0);
         }
         self.zzAcc[pet.id] = (self.zzAcc[pet.id] || 0) + dt;
         if (self.zzAcc[pet.id] > 1100) {
@@ -561,9 +582,11 @@
           break;
         }
         case 'rest': {
-          // 趴着休息：缓慢恢复精力
+          // 趴着休息：缓慢恢复精力（小憩；猫砂盆脏满时睡不好，不恢复）
           beh.t -= dt / 1000;
-          pet.energy = Math.min(100, pet.energy + dt / 1000 * 3);
+          if (self.litterDirt < 100) {
+            pet.energy = Math.min(100, pet.energy + dt / 1000 * 0.15);
+          }
           if (beh.t <= 0) { beh.state = 'idle'; beh.t = Utils.rand(1, 3); }
           break;
         }
@@ -997,7 +1020,7 @@
     if (pet.energy >= 92) { this.toastMsg(pet.name + ' 精力满满，不需要休息'); return; }
     if (pet.beh.state === 'sleep') return;
     pet.beh.state = 'sleep';
-    pet.beh.t = 4;
+    pet.beh.t = 20;
     pet.beh.manual = true;
     pet.beh.wander = false;
     pet.beh.pending = null;
