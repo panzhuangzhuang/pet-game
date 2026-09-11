@@ -1399,6 +1399,19 @@
     grass.addColorStop(1, '#6bb84f');
     ctx.fillStyle = grass;
     ctx.fillRect(0, 300, W2, H2 - 300);
+    // 远景小树（栅栏后，地平线处）
+    function drawTree(tx, ty, ts) {
+      ctx.fillStyle = '#8a5a33';
+      ctx.fillRect(tx - 3 * ts, ty, 6 * ts, 30 * ts);
+      ctx.fillStyle = '#5cb86b';
+      Utils.ell(ctx, tx - 14 * ts, ty - 8 * ts, 20 * ts, 22 * ts);
+      Utils.ell(ctx, tx + 14 * ts, ty - 10 * ts, 20 * ts, 22 * ts);
+      Utils.ell(ctx, tx, ty - 22 * ts, 24 * ts, 26 * ts);
+      ctx.fillStyle = '#7cc576';
+      Utils.ell(ctx, tx - 4 * ts, ty - 16 * ts, 12 * ts, 12 * ts);
+    }
+    drawTree(560, 312, 1.15);
+    drawTree(668, 316, 0.85);
     // 栅栏
     ctx.strokeStyle = '#c9a86a';
     ctx.lineWidth = 6;
@@ -1442,7 +1455,8 @@
     for (var i = 0; i < L.plots.length; i++) {
       var plot = L.plots[i];
       var pl = game.yard[i];
-      // 地块（棕色土地 + 白描边）
+      // 地块投影 + 棕色土地（白描边）
+      Utils.roundRect(ctx, plot.x, plot.y + 5, plot.w, plot.h, 14, 'rgba(80,50,20,0.18)');
       Utils.roundRect(ctx, plot.x, plot.y, plot.w, plot.h, 14, '#b97a3f', '#f6e3c2');
       ctx.strokeStyle = 'rgba(120,70,20,0.25)';
       ctx.lineWidth = 3;
@@ -1514,6 +1528,18 @@
     water.addColorStop(1, '#1f6f9e');
     ctx.fillStyle = water;
     ctx.fillRect(0, 0, W, H);
+    // 水面右上太阳光晕
+    var halo = ctx.createRadialGradient(650, 60, 10, 650, 60, 220);
+    halo.addColorStop(0, 'rgba(255,255,255,0.30)');
+    halo.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, W, 420);
+    // 斜向高光带（波光粼粼）
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.beginPath();
+    ctx.moveTo(120, 0); ctx.lineTo(420, 0); ctx.lineTo(300, H); ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
     // 波纹
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 3;
@@ -1554,6 +1580,48 @@
       ctx.moveTo(gx2, 1160);
       ctx.quadraticCurveTo(gx2 + 14, gy - 60, gx2, gy - 105);
       ctx.stroke();
+    }
+    // 睡莲叶（点缀水面，避开水族网格）
+    var lily = [
+      { x: 185, y: 505, r: 26 }, { x: 520, y: 720, r: 22 }, { x: 300, y: 830, r: 18 }
+    ];
+    for (var li = 0; li < lily.length; li++) {
+      var lf = lily[li];
+      ctx.fillStyle = '#4a9e4f';
+      ctx.beginPath();
+      ctx.ellipse(lf.x, lf.y, lf.r, lf.r * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3f8f4a';
+      ctx.beginPath();
+      ctx.moveTo(lf.x, lf.y);
+      ctx.lineTo(lf.x + lf.r * 0.9, lf.y - lf.r * 0.4);
+      ctx.lineTo(lf.x + lf.r * 1.1, lf.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(lf.x, lf.y);
+      ctx.lineTo(lf.x + lf.r * 0.6, lf.y + lf.r * 0.25);
+      ctx.stroke();
+      ctx.fillStyle = '#ffb3d1';
+      Utils.ell(ctx, lf.x + lf.r * 0.5, lf.y - lf.r * 0.25, 7, 5);
+    }
+    // 小气泡（上升感）
+    var bubbles = [
+      { x: 140, y: 640, r: 7 }, { x: 620, y: 480, r: 5 }, { x: 420, y: 620, r: 9 }, { x: 250, y: 900, r: 6 }
+    ];
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (var bu = 0; bu < bubbles.length; bu++) {
+      var bp = bubbles[bu];
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, bp.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(bp.x - bp.r * 0.3, bp.y - bp.r * 0.3, bp.r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
     }
 
     // 返回按钮
@@ -1599,7 +1667,8 @@
     Pets_POND_ORDER.forEach(function (k, i) {
       var card = { x: 25 + i * 250, y: 1000, w: 220, h: 150 };
       var d3 = Pets_pondInfo[k] || { emoji: '🐟', label: k };
-      Utils.roundRect(ctx, card.x, card.y, card.w, card.h, 14, 'rgba(230,244,255,0.9)', '#4aa3df');
+      Utils.roundRect(ctx, card.x, card.y + 5, card.w, card.h, 14, 'rgba(20,60,90,0.22)');
+      Utils.roundRect(ctx, card.x, card.y, card.w, card.h, 14, 'rgba(230,244,255,0.92)', '#4aa3df');
       Utils.drawText(ctx, d3.emoji, card.x + card.w / 2, card.y + 52, { size: 44 });
       Utils.drawText(ctx, '领养' + d3.label, card.x + card.w / 2, card.y + 92, { size: 22, weight: 'bold', color: '#2a5a8a' });
       Utils.drawText(ctx, '初始 100g', card.x + card.w / 2, card.y + 124, { size: 16, color: '#5a8ab0' });
