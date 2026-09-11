@@ -54,6 +54,13 @@
     // 后墙
     ctx.fillStyle = '#f6e3c2';
     ctx.fillRect(LAYOUT.backWall.x, LAYOUT.backWall.y, LAYOUT.backWall.w, LAYOUT.backWall.h);
+    // 墙纸顶部腰线（浅色圆点装饰带）
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillRect(LAYOUT.backWall.x, LAYOUT.backWall.y, LAYOUT.backWall.w, 16);
+    ctx.fillStyle = 'rgba(180,120,70,0.18)';
+    for (var wxx = LAYOUT.backWall.x + 12; wxx < LAYOUT.backWall.x + LAYOUT.backWall.w - 8; wxx += 30) {
+      Utils.ell(ctx, wxx, LAYOUT.backWall.y + 8, 4, 4);
+    }
     // 墙纸条纹
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     for (var x = LAYOUT.backWall.x + 40; x < LAYOUT.backWall.x + LAYOUT.backWall.w; x += 80) {
@@ -102,6 +109,15 @@
     ctx.fill();
     ctx.fillStyle = '#ffd76a';
     Utils.ell(ctx, px + 100, py + 24, 12, 12);
+    // 相框玻璃斜反光
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(px + 14, py + 12);
+    ctx.lineTo(px + 44, py + 12);
+    ctx.lineTo(px + 22, py + ph - 12);
+    ctx.lineTo(px + 9, py + ph - 12);
+    ctx.closePath();
+    ctx.fill();
 
     // 院子门（窗户与挂画之间，点击可进入院子）
     var dx = 360, dy = 245, dw = 100, dh = 225;
@@ -167,8 +183,14 @@
     Utils.ell(ctx, 375, 760, 226, 122);
     ctx.fillStyle = 'rgba(240,196,162,0.8)';
     Utils.ell(ctx, 375, 760, 120, 62);
+    // 地毯花边（一圈小圆点）
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (var da = 0; da < 26; da++) {
+      var an2 = da / 26 * Math.PI * 2;
+      Utils.ell(ctx, 375 + Math.cos(an2) * 240, 760 + Math.sin(an2) * 128, 5, 5);
+    }
 
-    // 角落绿植
+    // 角落绿植（左）
     ctx.fillStyle = '#b0703a';
     ctx.beginPath();
     ctx.moveTo(76, 540); ctx.lineTo(106, 540); ctx.lineTo(98, 506); ctx.lineTo(84, 506);
@@ -178,6 +200,29 @@
     Utils.ell(ctx, 82, 498, 16, 22);
     Utils.ell(ctx, 102, 494, 16, 26);
     Utils.ell(ctx, 92, 484, 14, 22);
+    // 角落绿植（右）
+    ctx.fillStyle = '#b0703a';
+    ctx.beginPath();
+    ctx.moveTo(648, 540); ctx.lineTo(678, 540); ctx.lineTo(670, 506); ctx.lineTo(656, 506);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#5cb86b';
+    Utils.ell(ctx, 654, 498, 16, 22);
+    Utils.ell(ctx, 674, 494, 16, 26);
+    Utils.ell(ctx, 664, 484, 14, 22);
+    ctx.fillStyle = '#7cc576';
+    Utils.ell(ctx, 658, 486, 12, 18);
+    Utils.ell(ctx, 670, 484, 12, 18);
+
+    // 窗户阳光光斑（叠加在墙与地板上，随窗位置投下）
+    ctx.fillStyle = 'rgba(255,224,130,0.14)';
+    ctx.beginPath();
+    ctx.moveTo(wx + 8, wy + wh);
+    ctx.lineTo(wx + ww - 8, wy + wh);
+    ctx.lineTo(wx + ww + 70, wy + wh + 165);
+    ctx.lineTo(wx + 8, wy + wh + 165);
+    ctx.closePath();
+    ctx.fill();
   }
 
   // ---------- 碗（level: 0 空碗 ~ 100 满碗） ----------
@@ -520,8 +565,11 @@
       sx += Math.sin(time / 180) * 6;
     }
 
-    // 选中光环
+    // 选中光环（外层柔光 + 内层描边，更醒目）
     if (selected) {
+      ctx.strokeStyle = 'rgba(255,143,63,0.22)';
+      ctx.lineWidth = 9;
+      Utils.ell(ctx, sx, sy + 3 * sc, 90 * sc * wf, 27 * sc * wf);
       ctx.strokeStyle = 'rgba(255,143,63,0.85)';
       ctx.lineWidth = 4;
       Utils.ell(ctx, sx, sy + 3 * sc, 74 * sc * wf, 20 * sc * wf);
@@ -628,6 +676,8 @@
   function drawChip(ctx, pet, x, y, w, h, selected, t) {
     var dead = !pet.alive;
     var compact = h < 100;
+    // 柔和投影（增强卡片层次）
+    Utils.roundRect(ctx, x, y + 5, w, h, 18, 'rgba(140,90,50,0.16)');
     Utils.roundRect(ctx, x, y, w, h, 18,
       selected ? '#fff2e2' : 'rgba(255,255,255,0.9)',
       selected ? '#ff8f3f' : 'rgba(200,170,130,0.5)');
@@ -821,9 +871,11 @@
 
   // ---------- 底部操作栏 ----------
   function drawActionBar(ctx, game) {
-    // 提示
-    Utils.drawText(ctx, '点碗添粮添水 · 点按/滑动宠物抚摸 · 记得每天照料',
-      375, LAYOUT.barTop - 16, { size: 20, color: '#a0805a' });
+    // 提示（浅色底条更醒目）
+    var tipText = '点碗添粮添水 · 点按/滑动宠物抚摸 · 记得每天照料';
+    var tw = Utils.measure(ctx, tipText, 20) + 44;
+    Utils.roundRect(ctx, (W - tw) / 2, LAYOUT.barTop - 36, tw, 36, 18, 'rgba(255,255,255,0.6)');
+    Utils.drawText(ctx, tipText, 375, LAYOUT.barTop - 13, { size: 20, color: '#a0805a' });
     // 底栏底色
     var g = ctx.createLinearGradient(0, LAYOUT.barTop, 0, H);
     g.addColorStop(0, 'rgba(255,244,230,0)');
@@ -1155,8 +1207,12 @@
     var nRows = rows.length;
     var cw = 560, ch = 120 + modal.lines.length * 44 + nRows * 86 + 10;
     var cx = (W - cw) / 2, cy = (H - ch) / 2;
+    // 弹窗投影（增强层次）
+    Utils.roundRect(ctx, cx + 3, cy + 7, cw, ch, 24, 'rgba(80,50,20,0.28)');
     Utils.roundRect(ctx, cx, cy, cw, ch, 24, '#fffdf7');
-    Utils.drawText(ctx, modal.title, W / 2, cy + 56, { size: 32, weight: 'bold', color: '#6b4a35' });
+    // 顶部装饰条
+    Utils.roundRect(ctx, cx + cw / 2 - 42, cy + 24, 84, 9, 4.5, '#ffb36b');
+    Utils.drawText(ctx, modal.title, W / 2, cy + 62, { size: 32, weight: 'bold', color: '#6b4a35' });
     for (var i = 0; i < modal.lines.length; i++) {
       Utils.drawText(ctx, modal.lines[i], W / 2, cy + 118 + i * 44, { size: 24, color: '#8a6a45' });
     }
@@ -1181,6 +1237,13 @@
     ctx.globalAlpha = Math.min(1, life * 2.5);
     var w = Utils.measure(ctx, toast.text, 26) + 60;
     Utils.roundRect(ctx, (W - w) / 2, 330, w, 56, 28, 'rgba(60,40,25,0.85)');
+    // 气泡小尾巴
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 9, 386);
+    ctx.lineTo(W / 2, 404);
+    ctx.lineTo(W / 2 + 9, 386);
+    ctx.closePath();
+    ctx.fill();
     Utils.drawText(ctx, toast.text, W / 2, 358, { size: 26, color: '#fff' });
     ctx.globalAlpha = 1;
   }
